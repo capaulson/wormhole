@@ -22,7 +22,43 @@ final class WebSocketService: @unchecked Sendable {
 
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        // Pydantic sends ISO8601 with fractional seconds but no timezone
+        // e.g., "2025-12-31T23:46:22.733940"
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+
+            // Try with fractional seconds first
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            // Fall back to without fractional seconds
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            // Try adding Z if no timezone
+            if !dateString.hasSuffix("Z") && !dateString.contains("+") {
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                if let date = formatter.date(from: dateString + "Z") {
+                    return date
+                }
+                formatter.formatOptions = [.withInternetDateTime]
+                if let date = formatter.date(from: dateString + "Z") {
+                    return date
+                }
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(dateString)"
+            )
+        }
         return decoder
     }()
 
@@ -115,20 +151,24 @@ final class WebSocketService: @unchecked Sendable {
     private func handleMessage(_ message: URLSessionWebSocketTask.Message) {
         switch message {
         case .string(let text):
+            print("[WS] Received: \(text.prefix(200))...")
             guard let data = text.data(using: .utf8) else { return }
             do {
                 let serverMessage = try decoder.decode(ServerMessage.self, from: data)
+                print("[WS] Decoded: \(serverMessage)")
                 onMessage?(serverMessage)
             } catch {
-                print("Failed to decode message: \(error)")
+                print("[WS] Failed to decode message: \(error)")
+                print("[WS] Raw message was: \(text)")
             }
 
         case .data(let data):
+            print("[WS] Received binary data: \(data.count) bytes")
             do {
                 let serverMessage = try decoder.decode(ServerMessage.self, from: data)
                 onMessage?(serverMessage)
             } catch {
-                print("Failed to decode message: \(error)")
+                print("[WS] Failed to decode binary message: \(error)")
             }
 
         @unknown default:

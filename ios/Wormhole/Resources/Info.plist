@@ -22,7 +22,7 @@
 	<string>1</string>
 	<key>NSBonjourServices</key>
 	<array>
-		<string>_wormhole._tcp</string>
+		<string>_wormhole._tcp.</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Wormhole needs to discover and connect to Wormhole daemons on your network.</string>

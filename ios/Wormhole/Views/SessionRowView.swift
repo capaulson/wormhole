@@ -19,12 +19,6 @@ struct SessionRowView: View {
             }
 
             Spacer()
-
-            if session.costUsd > 0 {
-                Text("$\(session.costUsd, specifier: "%.4f")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(.vertical, 4)
     }

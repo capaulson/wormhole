@@ -6,16 +6,23 @@ struct MachineListView: View {
 
     var body: some View {
         List {
+            // Discovery status section
+            Section {
+                DiscoveryStatusView(state: appState.discoveryState)
+            }
+
             if appState.machines.isEmpty {
                 ContentUnavailableView(
                     "No Machines Found",
                     systemImage: "network",
-                    description: Text("Looking for Wormhole daemons on the network...")
+                    description: Text("Looking for Wormhole daemons on the network...\n\nTip: Make sure the daemon is running and you're on the same network.")
                 )
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(appState.machines) { machine in
-                    MachineRow(machine: machine)
+                Section("Available Machines") {
+                    ForEach(appState.machines) { machine in
+                        MachineRow(machine: machine)
+                    }
                 }
             }
         }
@@ -37,6 +44,62 @@ struct MachineListView: View {
         }
         .onDisappear {
             appState.stopDiscovery()
+        }
+    }
+}
+
+struct DiscoveryStatusView: View {
+    let state: DiscoveryState
+
+    var body: some View {
+        HStack(spacing: 12) {
+            statusIndicator
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusTitle)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(statusDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch state {
+        case .idle:
+            Image(systemName: "circle")
+                .foregroundStyle(.secondary)
+        case .browsing:
+            ProgressView()
+                .controlSize(.small)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var statusTitle: String {
+        switch state {
+        case .idle:
+            return "Discovery Stopped"
+        case .browsing:
+            return "Scanning Network"
+        case .failed:
+            return "Discovery Error"
+        }
+    }
+
+    private var statusDescription: String {
+        switch state {
+        case .idle:
+            return "Not searching for machines"
+        case .browsing:
+            return "Looking for Wormhole daemons via Bonjour"
+        case .failed(let error):
+            return error
         }
     }
 }

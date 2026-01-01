@@ -118,7 +118,7 @@ struct SessionInfo: Codable, Sendable {
     let state: String
     let claudeSessionId: String?
     let costUsd: Double
-    let lastActivity: Date
+    let lastActivity: Date?
 
     enum CodingKeys: String, CodingKey {
         case name

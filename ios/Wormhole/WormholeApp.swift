@@ -22,19 +22,27 @@ final class AppState {
     var sessions: [Session] = []
     var isConnected = false
     var connectionError: String?
+    var discoveryState: DiscoveryState = .idle
 
     private var discoveryService: BonjourDiscoveryService?
     private var webSocketService: WebSocketService?
+    private var manualMachines: [Machine] = []
 
     init() {
         setupDiscoveryService()
     }
 
     private func setupDiscoveryService() {
-        discoveryService = BonjourDiscoveryService { [weak self] machines in
-            Task { @MainActor [weak self] in
-                self?.machines = machines
-            }
+        discoveryService = BonjourDiscoveryService()
+
+        discoveryService?.onMachinesUpdated = { [weak self] discoveredMachines in
+            guard let self = self else { return }
+            // Merge discovered machines with manual ones
+            self.machines = discoveredMachines + self.manualMachines
+        }
+
+        discoveryService?.onStateChanged = { [weak self] state in
+            self?.discoveryState = state
         }
     }
 
@@ -90,6 +98,7 @@ final class AppState {
             port: port,
             isManual: true
         )
+        manualMachines.append(machine)
         machines.append(machine)
     }
 
@@ -99,6 +108,12 @@ final class AppState {
     }
 
     func sendPermissionResponse(requestId: String, decision: PermissionDecision) async {
+        // Clear the pending permission from the session
+        if let index = sessions.firstIndex(where: { $0.pendingPermission?.requestId == requestId }) {
+            sessions[index].pendingPermission = nil
+            sessions[index].state = .working
+        }
+
         let message = PermissionResponseMessage(
             requestId: requestId,
             decision: decision
@@ -117,23 +132,31 @@ final class AppState {
     }
 
     private func handleMessage(_ message: ServerMessage) {
+        print("[AppState] handleMessage: \(message)")
         switch message {
         case .welcome(let welcome):
+            print("[AppState] Got welcome with \(welcome.sessions.count) sessions")
             sessions = welcome.sessions.map { Session(from: $0) }
 
         case .event(let event):
+            print("[AppState] Got event for session \(event.session), sequence \(event.sequence)")
             if let index = sessions.firstIndex(where: { $0.name == event.session }) {
                 sessions[index].events.append(event)
                 sessions[index].lastActivity = event.timestamp
+                print("[AppState] Session \(event.session) now has \(sessions[index].events.count) events")
+            } else {
+                print("[AppState] No session found for \(event.session)")
             }
 
         case .permissionRequest(let request):
+            print("[AppState] Got permission request for \(request.sessionName)")
             if let index = sessions.firstIndex(where: { $0.name == request.sessionName }) {
                 sessions[index].pendingPermission = request
                 sessions[index].state = .awaitingApproval
             }
 
         case .syncResponse(let response):
+            print("[AppState] Got sync response for \(response.session) with \(response.events.count) events")
             if let index = sessions.firstIndex(where: { $0.name == response.session }) {
                 sessions[index].events.append(contentsOf: response.events)
             }

@@ -65,7 +65,7 @@ final class Session: Identifiable {
             state: SessionState(rawValue: info.state) ?? .idle,
             claudeSessionId: info.claudeSessionId,
             costUsd: info.costUsd,
-            lastActivity: info.lastActivity
+            lastActivity: info.lastActivity ?? Date()
         )
     }
 }

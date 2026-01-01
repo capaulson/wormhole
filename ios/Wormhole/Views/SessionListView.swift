@@ -15,15 +15,17 @@ struct SessionListView: View {
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(appState.sessions) { session in
-                    NavigationLink(value: session) {
+                    NavigationLink(value: session.id) {
                         SessionRowView(session: session)
                     }
                 }
             }
         }
         .navigationTitle(machineName)
-        .navigationDestination(for: Session.self) { session in
-            SessionDetailView(session: session)
+        .navigationDestination(for: String.self) { sessionId in
+            if let session = appState.sessions.first(where: { $0.id == sessionId }) {
+                SessionDetailView(session: session)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

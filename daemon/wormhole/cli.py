@@ -43,7 +43,7 @@ def main() -> None:
 def daemon(port: int, no_discovery: bool, log_level: str, log_json: bool) -> None:
     """Start the Wormhole daemon."""
     from wormhole.daemon import WormholeDaemon
-    from wormhole.logging import setup_logging
+    from wormhole.log_config import setup_logging
 
     setup_logging(level=log_level, json_output=log_json)
 
