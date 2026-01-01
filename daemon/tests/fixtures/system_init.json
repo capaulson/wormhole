@@ -1,0 +1,9 @@
+{
+  "type": "system",
+  "subtype": "init",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "cwd": "/home/user/project",
+  "tools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+  "model": "claude-sonnet-4-5",
+  "permission_mode": "default"
+}

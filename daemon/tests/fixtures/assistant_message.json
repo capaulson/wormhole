@@ -1,0 +1,17 @@
+{
+  "type": "assistant",
+  "message": {
+    "content": [
+      {"type": "text", "text": "I'll create the authentication module."},
+      {
+        "type": "tool_use",
+        "id": "toolu_01ABC123",
+        "name": "Write",
+        "input": {
+          "file_path": "auth.py",
+          "content": "def authenticate(user, password):\n    pass\n"
+        }
+      }
+    ]
+  }
+}
