@@ -8,85 +8,117 @@ Remote Claude Code session manager. Monitor and control Claude Code sessions fro
 - **Permission Control**: Approve or deny tool usage remotely (file writes, bash commands, etc.)
 - **Multi-Session**: Manage multiple Claude Code sessions across projects
 - **Auto-Discovery**: Automatically find Wormhole daemons on your local network via Bonjour
-- **Quick Actions**: Stop, plan mode, compact context from anywhere
+- **Quick Actions**: Stop, interrupt, or send messages from anywhere
 
-## Architecture
+## Requirements
 
-```
-┌─────────────┐     WebSocket      ┌──────────────┐
-│  iOS App    │◄──────────────────►│   Daemon     │
-│  (Swift)    │                    │  (Python)    │
-└─────────────┘                    └──────┬───────┘
-                                          │
-                                          │ Claude Agent SDK
-                                          │
-                                   ┌──────▼───────┐
-                                   │ Claude Code  │
-                                   │   Sessions   │
-                                   └──────────────┘
-```
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
+- macOS with Python 3.11+
 - [uv](https://github.com/astral-sh/uv) package manager
-- Xcode 15+ (for iOS app)
-- iOS 17+ device or simulator
+- Claude Code CLI installed and authenticated (`claude` command)
+- iPhone running iOS 17+
 
-### Daemon Setup
+## Installation
+
+### 1. Install the Daemon
 
 ```bash
-cd daemon
+# Clone the repository
+git clone https://github.com/yourusername/wormhole.git
+cd wormhole/daemon
+
+# Install dependencies
 uv sync
-uv run wormhole daemon
 ```
 
-The daemon will start on port 7117 and advertise via mDNS.
+### 2. Install the iOS App
 
-### iOS App
-
-Option 1: Generate project with XcodeGen
+**Option A: Build from source**
 ```bash
 cd ios
 brew install xcodegen  # if not installed
 xcodegen generate
 open Wormhole.xcodeproj
 ```
+Then build and run on your device (Cmd+R in Xcode).
 
-Option 2: Open the existing project
+**Option B: TestFlight** (coming soon)
+
+## Usage
+
+### Start the Daemon
+
+Run this on your Mac where you want to use Claude Code:
+
 ```bash
-open ios/Wormhole.xcodeproj
+cd wormhole/daemon
+uv run wormhole daemon
 ```
 
-Build and run on your device or simulator (Cmd+R).
+The daemon starts on port 7117 and advertises itself via Bonjour. You should see:
+```
+Starting Wormhole daemon on port 7117...
+Wormhole daemon ready (port=7117, control_socket=/tmp/wormhole.sock)
+```
 
-## CLI Commands
+### Create a Session
+
+In a new terminal, navigate to your project and create a session:
 
 ```bash
-# Start the daemon
-wormhole daemon [--port 7117] [--no-discovery] [--log-level INFO] [--log-json]
+cd ~/my-project
+uv run wormhole open --name my-project
+```
 
-# Open a new Claude Code session in current directory
-wormhole open [--name SESSION_NAME] [-- CLAUDE_ARGS]
+### Connect from iPhone
 
-# List active sessions
-wormhole list
+1. Open the Wormhole app on your iPhone
+2. Your Mac should appear automatically (same WiFi network)
+3. Tap to connect
+4. You'll see your session listed - tap to open it
 
-# Attach to a session (spawns claude --resume in screen)
-wormhole attach SESSION_NAME
+### Send Messages & Approve Permissions
+
+- Type messages in the text field at the bottom
+- When Claude needs to run a command or write a file, you'll see a permission card
+- Tap **Allow** or **Deny** to respond
+
+## CLI Reference
+
+```bash
+# Start the daemon (run once, keeps running)
+uv run wormhole daemon
+
+# Create a new session in current directory
+uv run wormhole open --name SESSION_NAME
+
+# List all active sessions
+uv run wormhole list
 
 # Close a session
-wormhole close SESSION_NAME
+uv run wormhole close SESSION_NAME
 
-# Show daemon status
-wormhole status
+# Check daemon status
+uv run wormhole status
+
+# Attach to session in terminal (for direct interaction)
+uv run wormhole attach SESSION_NAME
+```
+
+### Daemon Options
+
+```bash
+uv run wormhole daemon [OPTIONS]
+
+Options:
+  --port INTEGER      WebSocket port (default: 7117)
+  --no-discovery      Disable Bonjour advertisement
+  --log-level TEXT    Log level: DEBUG, INFO, WARNING, ERROR
+  --log-json          Output logs as JSON
 ```
 
 ## Configuration
 
-The daemon reads configuration from `~/.config/wormhole/config.toml`:
+Create `~/.config/wormhole/config.toml` for persistent settings:
 
 ```toml
 [daemon]
@@ -96,105 +128,49 @@ port = 7117
 enabled = true
 ```
 
-Environment variables override config:
+Environment variables override config file:
 - `WORMHOLE_PORT` - WebSocket port
-- `WORMHOLE_DISCOVERY_ENABLED` - Enable/disable mDNS (true/false)
-
-## Development
-
-### Running Tests
-
-Daemon (Python):
-```bash
-cd daemon
-uv run pytest                    # All tests
-uv run pytest -m "not integration"  # Unit only
-uv run pytest --cov              # With coverage
-uv run ruff check .              # Linting
-uv run pyright                   # Type checking
-```
-
-iOS (Swift):
-```bash
-cd ios
-xcodebuild -scheme Wormhole -destination 'platform=iOS Simulator,name=iPhone 15' test
-```
-
-### Project Structure
-
-```
-wormhole/
-├── daemon/
-│   ├── wormhole/
-│   │   ├── cli.py           # CLI commands
-│   │   ├── daemon.py        # Main daemon
-│   │   ├── session.py       # Claude SDK wrapper
-│   │   ├── control.py       # CLI-daemon IPC
-│   │   ├── protocol.py      # WebSocket messages
-│   │   ├── discovery.py     # mDNS advertisement
-│   │   ├── logging.py       # Structured logging
-│   │   └── config.py        # Configuration
-│   └── tests/
-│
-└── ios/
-    └── Wormhole/
-        ├── Models/          # Data models
-        ├── Views/           # SwiftUI views
-        └── Services/        # Networking
-```
-
-## WebSocket Protocol
-
-### Client -> Server
-
-| Message | Description |
-|---------|-------------|
-| `hello` | Initial handshake with client version |
-| `subscribe` | Subscribe to session events |
-| `input` | Send text to a session |
-| `permission_response` | Allow/deny a tool usage |
-| `control` | Session actions (interrupt, plan, etc.) |
-| `sync` | Request missed events |
-
-### Server -> Client
-
-| Message | Description |
-|---------|-------------|
-| `welcome` | Server info and session list |
-| `event` | Session event (Claude output, tool use) |
-| `permission_request` | Tool needs approval |
-| `sync_response` | Missed events since sequence |
-| `error` | Error message |
-
-## Security
-
-**V1 relies on network trust.** Only run on trusted local networks.
-
-Future versions may add:
-- TLS/SSL encryption
-- Token-based authentication
-- Per-session access controls
+- `WORMHOLE_DISCOVERY_ENABLED` - Enable/disable Bonjour (true/false)
 
 ## Troubleshooting
 
-### Daemon won't start
+### Daemon won't start: "Address already in use"
 
-Check if port 7117 is in use:
+Another process is using port 7117:
 ```bash
+# Find what's using the port
 lsof -i :7117
+
+# Kill it or use a different port
+uv run wormhole daemon --port 7118
 ```
 
-### iOS can't find daemon
+### iPhone can't find the daemon
 
-1. Ensure both devices are on the same network
-2. Check firewall allows port 7117
-3. Try manual connection: Settings > Add Machine
+1. Make sure both devices are on the **same WiFi network**
+2. Check your Mac's firewall allows incoming connections on port 7117
+3. Try adding the machine manually: tap **+** in the app and enter your Mac's IP address
 
-### Permission requests not reaching phone
+To find your Mac's IP:
+```bash
+ipconfig getifaddr en0
+```
 
-1. Verify WebSocket connection (check daemon logs)
-2. Try `wormhole status` to verify daemon is running
-3. Check iOS app is subscribed to the session
+### Sessions not appearing
+
+1. Make sure the daemon is running (`uv run wormhole status`)
+2. Check you created a session (`uv run wormhole list`)
+3. In the iOS app, pull down to refresh the session list
+
+### Permission requests not showing up
+
+1. Verify you're subscribed to the session (tap on it in the app)
+2. Check the daemon logs for WebSocket connection status
+3. Try disconnecting and reconnecting in the app
+
+## Security Note
+
+Wormhole currently relies on network trust - anyone on your local network can connect. Only run on trusted networks (home, office). Future versions will add authentication.
 
 ## License
 
