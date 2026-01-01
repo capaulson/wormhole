@@ -23,35 +23,28 @@ final class WebSocketService: @unchecked Sendable {
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         // Pydantic sends ISO8601 with fractional seconds but no timezone
-        // e.g., "2025-12-31T23:46:22.733940"
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // e.g., "2025-12-31T23:46:22.733940" - this is LOCAL time on the server
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        // Don't set timezone - treat as local time
+
+        let formatterNoFraction = DateFormatter()
+        formatterNoFraction.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatterNoFraction.locale = Locale(identifier: "en_US_POSIX")
 
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
 
-            // Try with fractional seconds first
+            // Try with fractional seconds first (local time)
             if let date = formatter.date(from: dateString) {
                 return date
             }
 
-            // Fall back to without fractional seconds
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
+            // Try without fractional seconds
+            if let date = formatterNoFraction.date(from: dateString) {
                 return date
-            }
-
-            // Try adding Z if no timezone
-            if !dateString.hasSuffix("Z") && !dateString.contains("+") {
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = formatter.date(from: dateString + "Z") {
-                    return date
-                }
-                formatter.formatOptions = [.withInternetDateTime]
-                if let date = formatter.date(from: dateString + "Z") {
-                    return date
-                }
             }
 
             throw DecodingError.dataCorruptedError(

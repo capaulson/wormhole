@@ -6,6 +6,11 @@ struct SessionDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Working indicator
+            if session.state == .working {
+                WorkingIndicatorView()
+            }
+
             // Event stream
             EventStreamView(session: session)
 
@@ -77,39 +82,128 @@ struct SessionDetailView: View {
     }
 }
 
+struct WorkingIndicatorView: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Claude is working...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
+}
+
 struct EventStreamView: View {
     @Bindable var session: Session
-
-    /// Filter out init, success, and other system messages that aren't useful to display
-    var displayableEvents: [EventMessage] {
-        session.events.filter { event in
-            // Filter out system messages (init, success, etc.)
-            if let subtype = event.message["subtype"]?.value as? String {
-                return false  // Hide all subtype messages (init, success, etc.)
-            }
-            return true
-        }
-    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(displayableEvents) { event in
-                        EventRowView(event: event)
-                            .id(event.id)
+                LazyVStack(spacing: 8) {
+                    ForEach(session.chatMessages) { message in
+                        ChatMessageView(message: message)
+                            .id(message.id)
                     }
                 }
                 .padding()
             }
-            .onChange(of: session.events.count) { _, _ in
-                if let lastEvent = displayableEvents.last {
+            .onChange(of: session.chatMessages.count) { _, _ in
+                if let lastMessage = session.chatMessages.last {
                     withAnimation {
-                        proxy.scrollTo(lastEvent.id, anchor: .bottom)
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
                 }
             }
         }
+    }
+}
+
+struct ChatMessageView: View {
+    let message: ChatMessage
+
+    var body: some View {
+        switch message.kind {
+        case .user(let text):
+            UserMessageView(text: text, timestamp: message.timestamp)
+        case .ai(let event):
+            AIMessageView(event: event)
+        }
+    }
+}
+
+struct UserMessageView: View {
+    let text: String
+    let timestamp: Date
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 60)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(text)
+                    .font(.body)
+                    .foregroundStyle(.white)
+
+                Text(timestamp, style: .time)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .padding(12)
+            .background(Color.blue, in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+}
+
+struct AIMessageView: View {
+    let event: EventMessage
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                if let content = extractContent(from: event.message) {
+                    Text(content)
+                        .font(.body)
+                }
+
+                Text(event.timestamp, style: .time)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+
+            Spacer(minLength: 60)
+        }
+    }
+
+    func extractContent(from message: [String: AnyCodable]) -> String? {
+        // Try to extract text content from assistant messages
+        if let contentArray = message["content"]?.value as? [[String: Any]] {
+            let texts = contentArray.compactMap { item -> String? in
+                if let text = item["text"] as? String {
+                    return text
+                }
+                if item["type"] as? String == "tool_use",
+                   let name = item["name"] as? String {
+                    return "🔧 Using tool: \(name)"
+                }
+                return nil
+            }
+            if !texts.isEmpty {
+                return texts.joined(separator: "\n")
+            }
+        }
+
+        // Try to get result from success messages
+        if let result = message["result"]?.value as? String {
+            return result
+        }
+
+        return nil
     }
 }
 

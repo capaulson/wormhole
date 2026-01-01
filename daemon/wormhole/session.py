@@ -63,12 +63,28 @@ class WormholeSession:
 
     async def start(self, options: dict[str, Any] | None = None) -> None:
         """Start the Claude SDK client."""
+        import logging
+        import os
+        import shutil
         from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+
+        logger = logging.getLogger(__name__)
+
+        # Use system claude CLI if available (for Max plan support)
+        cli_path = shutil.which("claude")
+        logger.info(f"Using Claude CLI: {cli_path or 'bundled'}")
+
+        # Override ANTHROPIC_API_KEY to empty string so Claude uses Max plan
+        # The env parameter adds to the existing environment, so we override with empty
+        logger.info("Overriding ANTHROPIC_API_KEY to use Max plan with model=opus")
 
         sdk_options = ClaudeAgentOptions(
             cwd=str(self.directory),
             can_use_tool=self._permission_handler,
             permission_mode="default",
+            cli_path=cli_path,  # Use system claude instead of bundled
+            env={"ANTHROPIC_API_KEY": ""},  # Override API key to force Max plan
+            model="opus",  # Explicitly request Opus (Max plan default)
             **(options or {}),
         )
 
@@ -84,16 +100,43 @@ class WormholeSession:
 
     async def query(self, text: str) -> None:
         """Send a query to Claude."""
-        if not self._client:
-            raise RuntimeError("Session not started")
+        # Auto-restart if session died
+        if self.state == SessionState.ERROR or not self._client:
+            await self._restart()
 
         self.state = SessionState.WORKING
         self.last_activity = datetime.now()
 
-        await self._client.query(text)
+        try:
+            await self._client.query(text)
+            # Start receiving responses in background
+            asyncio.create_task(self._receive_responses())
+        except Exception as e:
+            # If query fails, try to restart and retry once
+            self.state = SessionState.ERROR
+            await self._restart()
+            self.state = SessionState.WORKING
+            await self._client.query(text)
+            asyncio.create_task(self._receive_responses())
 
-        # Start receiving responses in background
-        asyncio.create_task(self._receive_responses())
+    async def _restart(self) -> None:
+        """Restart the Claude SDK client."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Restarting session {self.name}")
+
+        # Disconnect old client if any
+        if self._client:
+            try:
+                await self._client.disconnect()
+            except Exception:
+                pass
+            self._client = None
+
+        # Start fresh
+        await self.start()
+        self.state = SessionState.IDLE
 
     async def interrupt(self) -> None:
         """Interrupt current operation."""
@@ -152,16 +195,33 @@ class WormholeSession:
 
     async def _receive_responses(self) -> None:
         """Receive and process responses from Claude."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         if not self._client:
             return
 
         try:
             async for message in self._client.receive_response():
                 await self._handle_sdk_message(message)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error receiving responses in session {self.name}: {e}")
             self.state = SessionState.ERROR
-            # TODO: Broadcast error
-            raise
+
+            # Broadcast error event
+            if self._broadcast_callback:
+                from wormhole.protocol import ErrorMessage
+                error_msg = ErrorMessage(
+                    code="SDK_ERROR",
+                    message=f"Session error: {str(e)}",
+                    session=self.name,
+                )
+                try:
+                    await self._broadcast_callback(error_msg)
+                except Exception:
+                    pass
+            return  # Don't raise, just return so session can be restarted
 
         self.state = SessionState.IDLE
 

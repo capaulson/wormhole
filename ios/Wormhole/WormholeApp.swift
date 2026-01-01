@@ -103,6 +103,12 @@ final class AppState {
     }
 
     func sendInput(session: String, text: String) async {
+        // Add user message to local chat and set state to working
+        if let index = sessions.firstIndex(where: { $0.name == session }) {
+            sessions[index].addUserMessage(text)
+            sessions[index].state = .working
+        }
+
         let message = InputMessage(session: session, text: text)
         await webSocketService?.send(message)
     }
@@ -141,9 +147,15 @@ final class AppState {
         case .event(let event):
             print("[AppState] Got event for session \(event.session), sequence \(event.sequence)")
             if let index = sessions.firstIndex(where: { $0.name == event.session }) {
-                sessions[index].events.append(event)
-                sessions[index].lastActivity = event.timestamp
-                print("[AppState] Session \(event.session) now has \(sessions[index].events.count) events")
+                sessions[index].addEvent(event)
+                print("[AppState] Session \(event.session) now has \(sessions[index].chatMessages.count) chat messages")
+
+                // Update state based on event type
+                if let subtype = event.message["subtype"]?.value as? String {
+                    if subtype == "success" {
+                        sessions[index].state = .idle
+                    }
+                }
             } else {
                 print("[AppState] No session found for \(event.session)")
             }
@@ -158,7 +170,9 @@ final class AppState {
         case .syncResponse(let response):
             print("[AppState] Got sync response for \(response.session) with \(response.events.count) events")
             if let index = sessions.firstIndex(where: { $0.name == response.session }) {
-                sessions[index].events.append(contentsOf: response.events)
+                for event in response.events {
+                    sessions[index].addEvent(event)
+                }
             }
 
         case .error(let error):
