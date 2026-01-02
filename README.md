@@ -23,10 +23,13 @@ Remote Claude Code session manager. Monitor and control Claude Code sessions fro
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/wormhole.git
+git clone https://github.com/capaulson/wormhole.git
 cd wormhole/daemon
 
-# Install dependencies
+# Install system-wide (recommended)
+uv tool install -e .
+
+# Or just install dependencies for local use
 uv sync
 ```
 
@@ -50,8 +53,7 @@ Then build and run on your device (Cmd+R in Xcode).
 Run this on your Mac where you want to use Claude Code:
 
 ```bash
-cd wormhole/daemon
-uv run wormhole daemon
+wormhole daemon
 ```
 
 The daemon starts on port 7117 and advertises itself via Bonjour. You should see:
@@ -66,7 +68,7 @@ In a new terminal, navigate to your project and create a session:
 
 ```bash
 cd ~/my-project
-uv run wormhole open --name my-project
+wormhole open --name my-project
 ```
 
 ### Connect from iPhone
@@ -86,28 +88,28 @@ uv run wormhole open --name my-project
 
 ```bash
 # Start the daemon (run once, keeps running)
-uv run wormhole daemon
+wormhole daemon
 
 # Create a new session in current directory
-uv run wormhole open --name SESSION_NAME
+wormhole open --name SESSION_NAME
 
 # List all active sessions
-uv run wormhole list
+wormhole list
 
 # Close a session
-uv run wormhole close SESSION_NAME
+wormhole close SESSION_NAME
 
 # Check daemon status
-uv run wormhole status
+wormhole status
 
 # Attach to session in terminal (for direct interaction)
-uv run wormhole attach SESSION_NAME
+wormhole attach SESSION_NAME
 ```
 
 ### Daemon Options
 
 ```bash
-uv run wormhole daemon [OPTIONS]
+wormhole daemon [OPTIONS]
 
 Options:
   --port INTEGER      WebSocket port (default: 7117)
@@ -142,7 +144,7 @@ Another process is using port 7117:
 lsof -i :7117
 
 # Kill it or use a different port
-uv run wormhole daemon --port 7118
+wormhole daemon --port 7118
 ```
 
 ### iPhone can't find the daemon
@@ -158,8 +160,8 @@ ipconfig getifaddr en0
 
 ### Sessions not appearing
 
-1. Make sure the daemon is running (`uv run wormhole status`)
-2. Check you created a session (`uv run wormhole list`)
+1. Make sure the daemon is running (`wormhole status`)
+2. Check you created a session (`wormhole list`)
 3. In the iOS app, pull down to refresh the session list
 
 ### Permission requests not showing up

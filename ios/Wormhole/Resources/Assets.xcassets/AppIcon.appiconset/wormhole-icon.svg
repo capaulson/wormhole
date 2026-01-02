@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Background gradient - deep space -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0a0a14"/>
+    </radialGradient>
+
+    <!-- Wormhole center glow -->
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#a78bfa"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#1a1a2e" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ring gradients -->
+    <linearGradient id="ring1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+
+    <linearGradient id="ring2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+
+    <linearGradient id="ring3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+  <!-- Outer distortion ring -->
+  <ellipse cx="512" cy="512" rx="420" ry="380" fill="none" stroke="url(#ring1)" stroke-width="3" opacity="0.3" transform="rotate(-15 512 512)"/>
+  <ellipse cx="512" cy="512" rx="400" ry="360" fill="none" stroke="url(#ring1)" stroke-width="4" opacity="0.4" transform="rotate(-10 512 512)"/>
+
+  <!-- Spiral rings - outer to inner -->
+  <ellipse cx="512" cy="512" rx="350" ry="310" fill="none" stroke="url(#ring1)" stroke-width="6" opacity="0.5" transform="rotate(-5 512 512)"/>
+  <ellipse cx="512" cy="512" rx="300" ry="265" fill="none" stroke="url(#ring2)" stroke-width="8" opacity="0.6" transform="rotate(5 512 512)"/>
+  <ellipse cx="512" cy="512" rx="250" ry="220" fill="none" stroke="url(#ring2)" stroke-width="10" opacity="0.7" transform="rotate(15 512 512)"/>
+  <ellipse cx="512" cy="512" rx="200" ry="175" fill="none" stroke="url(#ring3)" stroke-width="12" opacity="0.8" transform="rotate(25 512 512)"/>
+  <ellipse cx="512" cy="512" rx="150" ry="130" fill="none" stroke="url(#ring3)" stroke-width="14" opacity="0.9" transform="rotate(35 512 512)"/>
+  <ellipse cx="512" cy="512" rx="100" ry="85" fill="none" stroke="#c4b5fd" stroke-width="16" transform="rotate(45 512 512)"/>
+  <ellipse cx="512" cy="512" rx="55" ry="45" fill="none" stroke="#ddd6fe" stroke-width="18" transform="rotate(55 512 512)"/>
+
+  <!-- Center bright core -->
+  <circle cx="512" cy="512" r="80" fill="url(#centerGlow)"/>
+  <circle cx="512" cy="512" r="35" fill="#ffffff"/>
+  <circle cx="512" cy="512" r="20" fill="#f5f3ff"/>
+
+  <!-- Accent stars -->
+  <circle cx="180" cy="200" r="3" fill="#ffffff" opacity="0.8"/>
+  <circle cx="850" cy="180" r="2" fill="#ffffff" opacity="0.6"/>
+  <circle cx="900" cy="750" r="4" fill="#ffffff" opacity="0.7"/>
+  <circle cx="150" cy="800" r="2" fill="#ffffff" opacity="0.5"/>
+  <circle cx="300" cy="150" r="2" fill="#ffffff" opacity="0.6"/>
+  <circle cx="750" cy="900" r="3" fill="#ffffff" opacity="0.5"/>
+</svg>
