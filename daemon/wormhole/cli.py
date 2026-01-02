@@ -248,3 +248,96 @@ def status() -> None:
     click.echo(f"  Port: {response.port}")
     click.echo(f"  Sessions: {response.session_count}")
     click.echo(f"  Connected clients: {response.connected_clients}")
+
+
+@main.command()
+@click.option(
+    "--shell",
+    type=click.Choice(["bash", "zsh", "fish"]),
+    default=None,
+    help="Shell type (auto-detected if not specified)",
+)
+@click.option("--install", is_flag=True, help="Install completion to shell config")
+def completion(shell: str | None, install: bool) -> None:
+    """Generate shell completion script.
+
+    Examples:
+
+    \b
+      # Print zsh completion script
+      wormhole completion --shell zsh
+
+    \b
+      # Install completion for your current shell
+      wormhole completion --install
+
+    \b
+      # Manual installation (zsh)
+      wormhole completion --shell zsh > ~/.wormhole-complete.zsh
+      echo 'source ~/.wormhole-complete.zsh' >> ~/.zshrc
+    """
+    import shutil
+
+    # Auto-detect shell if not specified
+    if shell is None:
+        shell_path = os.environ.get("SHELL", "")
+        if "zsh" in shell_path:
+            shell = "zsh"
+        elif "fish" in shell_path:
+            shell = "fish"
+        else:
+            shell = "bash"
+
+    # Generate completion script using Click's built-in support
+    env = {**os.environ, "_WORMHOLE_COMPLETE": f"{shell}_source"}
+    result = subprocess.run(
+        ["wormhole"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    completion_script = result.stdout
+
+    if install:
+        # Determine config file and install
+        home = Path.home()
+        completion_file = home / ".wormhole-complete"
+
+        if shell == "zsh":
+            config_file = home / ".zshrc"
+            completion_file = completion_file.with_suffix(".zsh")
+            source_line = f"source {completion_file}\n"
+        elif shell == "fish":
+            config_dir = home / ".config" / "fish" / "completions"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            completion_file = config_dir / "wormhole.fish"
+            source_line = None  # Fish auto-loads from completions dir
+        else:  # bash
+            config_file = home / ".bashrc"
+            completion_file = completion_file.with_suffix(".bash")
+            source_line = f"source {completion_file}\n"
+
+        # Write completion script
+        completion_file.write_text(completion_script)
+        click.echo(f"Wrote completion script to {completion_file}")
+
+        # Add source line to config if needed
+        if source_line:
+            config_content = config_file.read_text() if config_file.exists() else ""
+            if str(completion_file) not in config_content:
+                with open(config_file, "a") as f:
+                    f.write(f"\n# Wormhole CLI completion\n{source_line}")
+                click.echo(f"Added source line to {config_file}")
+            else:
+                click.echo(f"Source line already in {config_file}")
+
+        click.secho(f"\n✓ Completion installed for {shell}!", fg="green")
+        click.echo("  Restart your shell or run:")
+        if shell == "fish":
+            click.echo(f"    source {completion_file}")
+        else:
+            click.echo(f"    source {config_file}")
+    else:
+        # Just print the script
+        click.echo(completion_script)
