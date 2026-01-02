@@ -84,6 +84,21 @@ wormhole open --name my-project
 - When Claude needs to run a command or write a file, you'll see a permission card
 - Tap **Allow** or **Deny** to respond
 
+### Use Both CLI and iPhone Together
+
+Wormhole supports **dual-mode** operation - you can use the CLI and iOS app simultaneously:
+
+```bash
+# Attach to a session in your terminal
+wormhole attach my-project
+```
+
+This drops you directly into the Claude CLI. Both interfaces share the same session:
+- **CLI**: Full interactive Claude experience in your terminal
+- **iOS**: Monitor progress, send messages, approve permissions remotely
+
+Messages sent from either interface appear in both. Use the CLI when at your desk, switch to your phone when you walk away.
+
 ## CLI Reference
 
 ```bash

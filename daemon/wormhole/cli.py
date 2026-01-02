@@ -140,10 +140,14 @@ def list_sessions() -> None:
 
 @main.command()
 @click.argument("session_name")
-def attach(session_name: str) -> None:
-    """Attach to a session in terminal.
+@click.option("--screen", "use_screen", is_flag=True, help="Run in a screen session")
+def attach(session_name: str, use_screen: bool) -> None:
+    """Attach to a session in the Claude CLI.
 
-    Spawns an interactive claude --resume session in a screen.
+    Opens an interactive Claude session that shares state with the iOS app.
+    Both interfaces can send messages and see the conversation.
+
+    Use --screen to run in a detachable screen session.
     """
     from wormhole.control import SessionInfoResponse, SessionListResponse
 
@@ -180,36 +184,37 @@ def attach(session_name: str) -> None:
         sys.exit(1)
 
     claude_session_id = session.claude_session_id
+    session_dir = session.directory
 
-    # Spawn claude --resume in a screen session
-    screen_name = f"wormhole-{session_name}"
+    # Change to session directory
+    os.chdir(session_dir)
 
-    # Check if screen session already exists
-    result = subprocess.run(
-        ["screen", "-list", screen_name],
-        capture_output=True,
-        text=True,
-    )
+    if use_screen:
+        # Spawn claude --resume in a screen session
+        screen_name = f"wormhole-{session_name}"
 
-    if screen_name in result.stdout:
-        # Attach to existing screen
-        click.echo(f"Attaching to existing screen session '{screen_name}'...")
-        os.execvp("screen", ["screen", "-r", screen_name])
-    else:
-        # Create new screen with claude --resume
-        click.echo(f"Creating screen session '{screen_name}'...")
-        click.echo(f"Claude session ID: {claude_session_id}")
-        os.execvp(
-            "screen",
-            [
-                "screen",
-                "-S",
-                screen_name,
-                "claude",
-                "--resume",
-                claude_session_id,
-            ],
+        # Check if screen session already exists
+        result = subprocess.run(
+            ["screen", "-list", screen_name],
+            capture_output=True,
+            text=True,
         )
+
+        if screen_name in result.stdout:
+            click.echo(f"Attaching to existing screen session '{screen_name}'...")
+            os.execvp("screen", ["screen", "-r", screen_name])
+        else:
+            click.echo(f"Creating screen session '{screen_name}'...")
+            os.execvp(
+                "screen",
+                ["screen", "-S", screen_name, "claude", "--resume", claude_session_id],
+            )
+    else:
+        # Direct attach - drop into Claude CLI
+        click.echo(f"Attaching to session '{session_name}' in {session_dir}")
+        click.echo(f"Session ID: {claude_session_id}")
+        click.echo("─" * 50)
+        os.execvp("claude", ["claude", "--resume", claude_session_id])
 
 
 @main.command()
