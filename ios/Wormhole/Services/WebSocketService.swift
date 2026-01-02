@@ -70,23 +70,31 @@ final class WebSocketService: @unchecked Sendable {
     }
 
     private func performConnect() async {
-        guard let url = URL(string: "ws://\(host):\(port)") else {
+        let urlString = "ws://\(host):\(port)"
+        print("[WS] performConnect() - URL: \(urlString)")
+
+        guard let url = URL(string: urlString) else {
+            print("[WS] Invalid URL: \(urlString)")
             onConnectionChange?(false, "Invalid URL")
             return
         }
 
         urlSession = URLSession(configuration: .default)
         webSocket = urlSession?.webSocketTask(with: url)
+        print("[WS] Created WebSocket task, calling resume()")
         webSocket?.resume()
 
         // Send hello message
+        print("[WS] Sending hello message...")
         await sendHello()
+        print("[WS] Hello sent, starting receive loop")
 
         // Start receiving messages
         receiveMessages()
 
         isConnecting = false
         reconnectAttempt = 0
+        print("[WS] Connection established, notifying listeners")
         onConnectionChange?(true, nil)
     }
 

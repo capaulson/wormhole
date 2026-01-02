@@ -82,6 +82,15 @@ def parse_client_message(raw: str) -> ClientMessage:
 # === Daemon → Phone ===
 
 
+class PendingPermissionInfo(BaseModel):
+    """Pending permission request info for reconnection recovery."""
+    request_id: str
+    tool_name: str
+    tool_input: dict[str, Any]
+    session_name: str
+    created_at: datetime
+
+
 class SessionInfo(BaseModel):
     name: str
     directory: str
@@ -89,6 +98,7 @@ class SessionInfo(BaseModel):
     claude_session_id: str | None = None
     cost_usd: float = 0.0
     last_activity: datetime | None = None
+    pending_permissions: list[PendingPermissionInfo] = []
 
 
 class WelcomeMessage(BaseModel):
@@ -118,6 +128,7 @@ class SyncResponseMessage(BaseModel):
     type: Literal["sync_response"] = "sync_response"
     session: str
     events: list[EventMessage]
+    pending_permissions: list[PendingPermissionInfo] = []
 
 
 class ErrorMessage(BaseModel):

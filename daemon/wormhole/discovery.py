@@ -16,11 +16,15 @@ logger = logging.getLogger(__name__)
 class DiscoveryAdvertiser:
     """Advertise Wormhole service via mDNS/Bonjour."""
 
+    # Service type must end with .local. for zeroconf
     SERVICE_TYPE = "_wormhole._tcp.local."
 
     def __init__(self, port: int = 7117, machine_name: str | None = None) -> None:
         self.port = port
-        self.machine_name = machine_name or socket.gethostname()
+        # Get hostname and strip domain suffixes (.local, .localdomain, etc.)
+        raw_hostname = machine_name or socket.gethostname()
+        # Take only the first component (before any dots)
+        self.machine_name = raw_hostname.split(".")[0]
         self._zeroconf: Zeroconf | None = None
         self._info: ServiceInfo | None = None
         self._running = False
@@ -30,7 +34,7 @@ class DiscoveryAdvertiser:
         if self._running:
             return
 
-        from zeroconf import ServiceInfo, Zeroconf
+        from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
         try:
             local_ip = self._get_local_ip()
@@ -43,7 +47,9 @@ class DiscoveryAdvertiser:
                 },
             )
 
-            self._zeroconf = Zeroconf()
+            # Bind to specific interface to avoid issues with link-local addresses
+            # on other interfaces (169.254.x.x) that can break mDNS registration
+            self._zeroconf = Zeroconf(interfaces=[local_ip], ip_version=IPVersion.V4Only)
             self._info = ServiceInfo(
                 self.SERVICE_TYPE,
                 f"{self.machine_name}.{self.SERVICE_TYPE}",
@@ -59,8 +65,25 @@ class DiscoveryAdvertiser:
             await asyncio.get_event_loop().run_in_executor(
                 None, self._zeroconf.register_service, self._info
             )
+
+            # Verify registration succeeded by querying for our own service
+            check_info = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._zeroconf.get_service_info(  # type: ignore[union-attr]
+                    self.SERVICE_TYPE, self._info.name  # type: ignore[union-attr]
+                )
+            )
+            if check_info:
+                logger.info(
+                    "mDNS advertisement started and verified",
+                    extra={"service_name": self._info.name},
+                )
+            else:
+                logger.warning(
+                    "mDNS registration may have failed - service not found after registration"
+                )
+
             self._running = True
-            logger.info("mDNS advertisement started")
 
         except Exception as e:
             logger.error("Failed to start mDNS advertisement", exc_info=e)

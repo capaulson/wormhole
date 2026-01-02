@@ -281,7 +281,6 @@ def completion(shell: str | None, install: bool) -> None:
       wormhole completion --shell zsh > ~/.wormhole-complete.zsh
       echo 'source ~/.wormhole-complete.zsh' >> ~/.zshrc
     """
-    import shutil
 
     # Auto-detect shell if not specified
     if shell is None:

@@ -55,6 +55,7 @@ final class AppState {
     }
 
     func connect(to machine: Machine) async {
+        print("[AppState] connect(to: \(machine.name)) - host=\(machine.host), port=\(machine.port)")
         selectedMachine = machine
         connectionError = nil
 
@@ -71,6 +72,7 @@ final class AppState {
 
         webSocketService?.onConnectionChange = { [weak self] connected, error in
             Task { @MainActor [weak self] in
+                print("[AppState] onConnectionChange: connected=\(connected), error=\(error ?? "nil")")
                 self?.isConnected = connected
                 self?.connectionError = error
                 if !connected {
@@ -141,7 +143,8 @@ final class AppState {
         print("[AppState] handleMessage: \(message)")
         switch message {
         case .welcome(let welcome):
-            print("[AppState] Got welcome with \(welcome.sessions.count) sessions")
+            let totalPending = welcome.sessions.reduce(0) { $0 + $1.pendingPermissions.count }
+            print("[AppState] Got welcome with \(welcome.sessions.count) sessions, \(totalPending) total pending permissions")
             sessions = welcome.sessions.map { Session(from: $0) }
 
         case .event(let event):
@@ -168,10 +171,16 @@ final class AppState {
             }
 
         case .syncResponse(let response):
-            print("[AppState] Got sync response for \(response.session) with \(response.events.count) events")
+            print("[AppState] Got sync response for \(response.session) with \(response.events.count) events, \(response.pendingPermissions.count) pending permissions")
             if let index = sessions.firstIndex(where: { $0.name == response.session }) {
                 for event in response.events {
                     sessions[index].addEvent(event)
+                }
+
+                // Restore pending permissions from sync response
+                if let pendingInfo = response.pendingPermissions.first {
+                    sessions[index].pendingPermission = pendingInfo.toPermissionRequest()
+                    sessions[index].state = .awaitingApproval
                 }
             }
 

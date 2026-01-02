@@ -28,8 +28,8 @@ class TestSessionCreation:
         assert events == []
 
     def test_custom_buffer_size(self, tmp_path: Path) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, buffer_size=50)
-        assert session.buffer_size == 50
+        session = WormholeSession(name="test", directory=tmp_path, buffer_size_bytes=1024)
+        assert session.buffer_size_bytes == 1024
 
 
 class TestEventBuffering:
@@ -37,22 +37,24 @@ class TestEventBuffering:
 
     @pytest.mark.asyncio
     async def test_buffer_respects_max_size(self, tmp_path: Path) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, buffer_size=5)
+        # Use a small buffer that can hold ~2-3 events
+        # Each event is roughly 100 bytes overhead + message content
+        session = WormholeSession(name="test", directory=tmp_path, buffer_size_bytes=500)
 
-        # Simulate adding events via internal method
+        # Simulate adding events via internal method - each ~150 bytes
         for i in range(10):
-            await session._handle_sdk_message({"type": "test", "index": i})
+            await session._handle_sdk_message({"type": "test", "index": i, "padding": "x" * 50})
 
-        # Buffer should only have last 5 events
+        # Buffer should have evicted older events to stay under size limit
         events = session.get_events_since(0)
-        assert len(events) == 5
-        # Verify they're the last 5
-        assert events[0].message["index"] == 5
+        assert len(events) < 10  # Some events should have been evicted
+        # Verify the newest events are kept
         assert events[-1].message["index"] == 9
 
     @pytest.mark.asyncio
     async def test_get_events_since_sequence(self, tmp_path: Path) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, buffer_size=100)
+        # Use default buffer size (2MB) - plenty of room for small events
+        session = WormholeSession(name="test", directory=tmp_path)
 
         for i in range(5):
             await session._handle_sdk_message({"type": "test", "index": i})

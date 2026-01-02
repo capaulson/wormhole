@@ -111,6 +111,36 @@ enum ClientMessage: Codable, Sendable {
 
 // MARK: - Server -> Client Messages
 
+/// Pending permission info for reconnection recovery
+struct PendingPermissionInfo: Codable, Sendable, Identifiable {
+    var id: String { requestId }
+
+    let requestId: String
+    let toolName: String
+    let toolInput: [String: AnyCodable]
+    let sessionName: String
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case requestId = "request_id"
+        case toolName = "tool_name"
+        case toolInput = "tool_input"
+        case sessionName = "session_name"
+        case createdAt = "created_at"
+    }
+
+    /// Convert to PermissionRequestMessage for display
+    func toPermissionRequest() -> PermissionRequestMessage {
+        PermissionRequestMessage(
+            type: "permission_request",
+            requestId: requestId,
+            toolName: toolName,
+            toolInput: toolInput,
+            sessionName: sessionName
+        )
+    }
+}
+
 /// Session info in welcome message
 struct SessionInfo: Codable, Sendable {
     let name: String
@@ -119,6 +149,7 @@ struct SessionInfo: Codable, Sendable {
     let claudeSessionId: String?
     let costUsd: Double
     let lastActivity: Date?
+    let pendingPermissions: [PendingPermissionInfo]
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -127,6 +158,18 @@ struct SessionInfo: Codable, Sendable {
         case claudeSessionId = "claude_session_id"
         case costUsd = "cost_usd"
         case lastActivity = "last_activity"
+        case pendingPermissions = "pending_permissions"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        directory = try container.decode(String.self, forKey: .directory)
+        state = try container.decode(String.self, forKey: .state)
+        claudeSessionId = try container.decodeIfPresent(String.self, forKey: .claudeSessionId)
+        costUsd = try container.decode(Double.self, forKey: .costUsd)
+        lastActivity = try container.decodeIfPresent(Date.self, forKey: .lastActivity)
+        pendingPermissions = try container.decodeIfPresent([PendingPermissionInfo].self, forKey: .pendingPermissions) ?? []
     }
 }
 
@@ -188,6 +231,22 @@ struct SyncResponseMessage: Codable, Sendable {
     let type: String
     let session: String
     let events: [EventMessage]
+    let pendingPermissions: [PendingPermissionInfo]
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case session
+        case events
+        case pendingPermissions = "pending_permissions"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        session = try container.decode(String.self, forKey: .session)
+        events = try container.decode([EventMessage].self, forKey: .events)
+        pendingPermissions = try container.decodeIfPresent([PendingPermissionInfo].self, forKey: .pendingPermissions) ?? []
+    }
 }
 
 /// Error message from daemon

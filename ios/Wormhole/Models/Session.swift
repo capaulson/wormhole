@@ -130,6 +130,11 @@ final class Session: Identifiable {
             costUsd: info.costUsd,
             lastActivity: info.lastActivity ?? Date()
         )
+
+        // Restore pending permission from reconnection recovery
+        if let pendingInfo = info.pendingPermissions.first {
+            self.pendingPermission = pendingInfo.toPermissionRequest()
+        }
     }
 }
 

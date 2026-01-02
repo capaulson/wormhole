@@ -30,6 +30,24 @@ class BufferedEvent(BaseModel):
     timestamp: datetime
     message: dict[str, Any]
 
+    def estimated_size(self) -> int:
+        """Estimate the size of this event in bytes."""
+        import json
+        # Rough estimate: JSON serialized size + overhead
+        return len(json.dumps(self.message)) + 100
+
+
+class PendingPermission(BaseModel):
+    """Stored pending permission request for reconnection recovery."""
+    request_id: str
+    tool_name: str
+    tool_input: dict[str, Any]
+    created_at: datetime
+
+
+# Default 2MB buffer size
+DEFAULT_BUFFER_SIZE_BYTES = 2 * 1024 * 1024
+
 
 class WormholeSession:
     """Wraps a ClaudeSDKClient with permission routing and event buffering."""
@@ -38,11 +56,11 @@ class WormholeSession:
         self,
         name: str,
         directory: Path,
-        buffer_size: int = 1000,
+        buffer_size_bytes: int = DEFAULT_BUFFER_SIZE_BYTES,
     ) -> None:
         self.name = name
         self.directory = directory
-        self.buffer_size = buffer_size
+        self.buffer_size_bytes = buffer_size_bytes
 
         self.state = SessionState.IDLE
         self.claude_session_id: str | None = None
@@ -50,9 +68,11 @@ class WormholeSession:
         self.last_activity: datetime | None = None
 
         self._client: ClaudeSDKClient | None = None
-        self._event_buffer: deque[BufferedEvent] = deque(maxlen=buffer_size)
+        self._event_buffer: deque[BufferedEvent] = deque()
+        self._event_buffer_size: int = 0  # Current buffer size in bytes
         self._sequence: int = 0
         self._pending_permissions: dict[str, asyncio.Future[str]] = {}
+        self._pending_permission_details: dict[str, PendingPermission] = {}
 
         # Callback to broadcast events to WebSocket clients
         self._broadcast_callback: Any = None
@@ -64,8 +84,8 @@ class WormholeSession:
     async def start(self, options: dict[str, Any] | None = None) -> None:
         """Start the Claude SDK client."""
         import logging
-        import os
         import shutil
+
         from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
         logger = logging.getLogger(__name__)
@@ -111,7 +131,7 @@ class WormholeSession:
             await self._client.query(text)
             # Start receiving responses in background
             asyncio.create_task(self._receive_responses())
-        except Exception as e:
+        except Exception:
             # If query fails, try to restart and retry once
             self.state = SessionState.ERROR
             await self._restart()
@@ -155,6 +175,10 @@ class WormholeSession:
         """Get buffered events since given sequence number."""
         return [e for e in self._event_buffer if e.sequence > sequence]
 
+    def get_pending_permissions(self) -> list[PendingPermission]:
+        """Get all pending permission requests (for reconnection recovery)."""
+        return list(self._pending_permission_details.values())
+
     async def _permission_handler(
         self,
         tool_name: str,
@@ -171,6 +195,14 @@ class WormholeSession:
         future: asyncio.Future[str] = asyncio.get_event_loop().create_future()
         self._pending_permissions[request_id] = future
 
+        # Store permission details for reconnection recovery
+        self._pending_permission_details[request_id] = PendingPermission(
+            request_id=request_id,
+            tool_name=tool_name,
+            tool_input=input_data,
+            created_at=datetime.now(),
+        )
+
         # Broadcast permission request
         if self._broadcast_callback:
             msg = PermissionRequestMessage(
@@ -186,6 +218,7 @@ class WormholeSession:
             decision = await future
         finally:
             self._pending_permissions.pop(request_id, None)
+            self._pending_permission_details.pop(request_id, None)
             self.state = SessionState.WORKING
 
         if decision == "allow":
@@ -248,13 +281,20 @@ class WormholeSession:
             else:
                 msg_dict = {"raw": str(message)}
 
-        # Buffer event
+        # Buffer event with size-based eviction
         event = BufferedEvent(
             sequence=self._sequence,
             timestamp=now,
             message=msg_dict,
         )
+        event_size = event.estimated_size()
         self._event_buffer.append(event)
+        self._event_buffer_size += event_size
+
+        # Evict old events if buffer exceeds size limit
+        while self._event_buffer_size > self.buffer_size_bytes and self._event_buffer:
+            old_event = self._event_buffer.popleft()
+            self._event_buffer_size -= old_event.estimated_size()
 
         # Capture session ID from init message
         # SDK SystemMessage has: subtype, data where data contains session_id

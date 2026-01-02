@@ -22,10 +22,15 @@
 	<string>1</string>
 	<key>NSBonjourServices</key>
 	<array>
-		<string>_wormhole._tcp.</string>
+		<string>_wormhole._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Wormhole needs to discover and connect to Wormhole daemons on your network.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

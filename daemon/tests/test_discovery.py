@@ -28,11 +28,15 @@ class TestDiscoveryAdvertiser:
         with (
             patch("zeroconf.Zeroconf") as mock_zeroconf_class,
             patch("zeroconf.ServiceInfo") as mock_service_info_class,
+            patch("zeroconf.IPVersion"),
         ):
             mock_zeroconf = MagicMock()
             mock_zeroconf_class.return_value = mock_zeroconf
             mock_service_info = MagicMock()
+            mock_service_info.name = "test._wormhole._tcp."
             mock_service_info_class.return_value = mock_service_info
+            # Mock get_service_info to return the service (verification succeeds)
+            mock_zeroconf.get_service_info.return_value = mock_service_info
 
             advertiser = DiscoveryAdvertiser(port=7117)
             await advertiser.start()
@@ -45,11 +49,14 @@ class TestDiscoveryAdvertiser:
         with (
             patch("zeroconf.Zeroconf") as mock_zeroconf_class,
             patch("zeroconf.ServiceInfo") as mock_service_info_class,
+            patch("zeroconf.IPVersion"),
         ):
             mock_zeroconf = MagicMock()
             mock_zeroconf_class.return_value = mock_zeroconf
             mock_service_info = MagicMock()
+            mock_service_info.name = "test._wormhole._tcp."
             mock_service_info_class.return_value = mock_service_info
+            mock_zeroconf.get_service_info.return_value = mock_service_info
 
             advertiser = DiscoveryAdvertiser(port=7117)
             await advertiser.start()
@@ -71,11 +78,14 @@ class TestDiscoveryAdvertiser:
         with (
             patch("zeroconf.Zeroconf") as mock_zeroconf_class,
             patch("zeroconf.ServiceInfo") as mock_service_info_class,
+            patch("zeroconf.IPVersion"),
         ):
             mock_zeroconf = MagicMock()
             mock_zeroconf_class.return_value = mock_zeroconf
             mock_service_info = MagicMock()
+            mock_service_info.name = "test._wormhole._tcp."
             mock_service_info_class.return_value = mock_service_info
+            mock_zeroconf.get_service_info.return_value = mock_service_info
 
             advertiser = DiscoveryAdvertiser(port=7117)
             await advertiser.start()
@@ -86,6 +96,7 @@ class TestDiscoveryAdvertiser:
             assert mock_zeroconf.register_service.call_count == 1
 
     def test_service_type_is_correct(self) -> None:
+        # Service type must end with .local. for zeroconf
         assert DiscoveryAdvertiser.SERVICE_TYPE == "_wormhole._tcp.local."
 
 

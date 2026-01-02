@@ -110,8 +110,11 @@ struct MachineRow: View {
 
     var body: some View {
         Button {
+            print("[MachineRow] Button tapped for: \(machine.name)")
             Task {
+                print("[MachineRow] Calling connect(to: \(machine.name))")
                 await appState.connect(to: machine)
+                print("[MachineRow] connect() returned")
             }
         } label: {
             HStack {

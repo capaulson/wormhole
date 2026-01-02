@@ -9,6 +9,8 @@ import socket
 from pathlib import Path
 from typing import Any
 
+import websockets.exceptions
+
 from wormhole.control import (
     CloseSessionRequest,
     ControlRequest,
@@ -29,6 +31,7 @@ from wormhole.protocol import (
     ClientMessage,
     ErrorMessage,
     EventMessage,
+    PendingPermissionInfo,
     ServerMessage,
     SessionInfo,
     WelcomeMessage,
@@ -71,7 +74,15 @@ class WormholeDaemon:
         if self.enable_discovery:
             await self._start_discovery()
 
-        async with websockets.serve(self._handle_connection, "0.0.0.0", self.port):
+        # Mobile clients may be slow to respond to pings (network transitions, etc.)
+        # Increase timeouts to reduce spurious disconnections
+        async with websockets.serve(
+            self._handle_connection,
+            "0.0.0.0",
+            self.port,
+            ping_interval=30,  # Send ping every 30 seconds
+            ping_timeout=60,   # Wait 60 seconds for pong before closing
+        ):
             logger.info(
                 "Wormhole daemon ready",
                 extra={"port": self.port, "control_socket": str(get_socket_path())},
@@ -285,6 +296,9 @@ class WormholeDaemon:
         """Handle a new WebSocket connection."""
         self._clients.add(websocket)
         subscribed_sessions: set[str] = set()
+        remote = getattr(websocket, 'remote_address', None)
+        client_info = f"{remote}" if remote else "unknown"
+        logger.debug("Client connected", extra={"client": client_info})
 
         try:
             async for raw_message in websocket:
@@ -294,6 +308,12 @@ class WormholeDaemon:
                 except Exception as e:
                     error = ErrorMessage(code="INVALID_MESSAGE", message=str(e))
                     await websocket.send(error.model_dump_json())
+        except websockets.exceptions.ConnectionClosed as e:
+            # Expected when clients disconnect (mobile going to background, network loss, etc.)
+            logger.debug(
+                "Client disconnected",
+                extra={"client": client_info, "code": e.code, "reason": e.reason},
+            )
         finally:
             self._clients.discard(websocket)
 
@@ -327,6 +347,16 @@ class WormholeDaemon:
                             claude_session_id=s.claude_session_id,
                             cost_usd=s.cost_usd,
                             last_activity=s.last_activity,
+                            pending_permissions=[
+                                PendingPermissionInfo(
+                                    request_id=p.request_id,
+                                    tool_name=p.tool_name,
+                                    tool_input=p.tool_input,
+                                    session_name=s.name,
+                                    created_at=p.created_at,
+                                )
+                                for p in s.get_pending_permissions()
+                            ],
                         )
                         for s in self.sessions.values()
                     ],
@@ -376,6 +406,16 @@ class WormholeDaemon:
                                 message=e.message,
                             )
                             for e in events
+                        ],
+                        pending_permissions=[
+                            PendingPermissionInfo(
+                                request_id=p.request_id,
+                                tool_name=p.tool_name,
+                                tool_input=p.tool_input,
+                                session_name=session.name,
+                                created_at=p.created_at,
+                            )
+                            for p in session.get_pending_permissions()
                         ],
                     )
                     await websocket.send(response.model_dump_json())
