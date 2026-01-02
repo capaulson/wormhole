@@ -299,6 +299,19 @@ def completion(shell: str | None, install: bool) -> None:
 
     completion_script = result.stdout
 
+    # For zsh, wrap with compinit check to ensure completion system is loaded
+    if shell == "zsh":
+        completion_script = f"""\
+# Wormhole CLI completion for zsh
+# Ensure completion system is initialized
+autoload -Uz compinit 2>/dev/null
+if [[ -z "$_comps" ]]; then
+    compinit -u 2>/dev/null
+fi
+
+{completion_script}
+"""
+
     if install:
         # Determine config file and install
         home = Path.home()
