@@ -150,8 +150,8 @@ class WormholeSession:
             "model": options.pop("model", "opus"),
             # CRITICAL: Use preset system prompt to preserve Claude Code's default prompt
             # If system_prompt is None, SDK passes --system-prompt "" which REPLACES
-            # the default prompt, removing all tool awareness. Using {"type": "preset", "append": ""}
-            # preserves the default prompt while allowing optional additions.
+            # the default prompt, removing all tool awareness. Using
+            # {"type": "preset", "append": ""} preserves the default prompt.
             "system_prompt": options.pop("system_prompt", {"type": "preset", "append": ""}),
         }
 
@@ -232,7 +232,7 @@ class WormholeSession:
 
         # Disconnect old client if any
         if self._client:
-            try:
+            try:  # noqa: SIM105 - async code can't use contextlib.suppress
                 await self._client.disconnect()
             except Exception:
                 pass
@@ -270,10 +270,9 @@ class WormholeSession:
         """
         # Check in-memory buffer first
         buffered = [e for e in self._event_buffer if e.sequence > sequence]
-        if buffered:
-            # If we have buffered events and the first one is what they need, use buffer
-            if buffered[0].sequence == sequence + 1:
-                return buffered
+        # If we have buffered events and the first one is what they need, use buffer
+        if buffered and buffered[0].sequence == sequence + 1:
+            return buffered
 
         # Fall back to persisted events
         persisted = self._event_persistence.load_events(self.name, since_sequence=sequence)
@@ -365,7 +364,7 @@ class WormholeSession:
                     message=f"Session error: {str(e)}",
                     session=self.name,
                 )
-                try:
+                try:  # noqa: SIM105 - async code can't use contextlib.suppress
                     await self._broadcast_callback(error_msg)
                 except Exception:
                     pass

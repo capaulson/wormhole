@@ -26,10 +26,8 @@ def get_service_manager() -> ServiceManager:
     """Detect the system's service manager."""
     if is_macos():
         return "launchd"
-    elif is_linux():
-        # Check for systemd
-        if Path("/run/systemd/system").exists():
-            return "systemd"
+    if is_linux() and Path("/run/systemd/system").exists():
+        return "systemd"
     return "none"
 
 
@@ -60,7 +58,10 @@ def check_mdns_support() -> tuple[bool, str]:
             if result.stdout.strip() == "active":
                 return True, "Avahi daemon running"
             else:
-                return False, "Avahi daemon not running. Start with: sudo systemctl start avahi-daemon"
+                return (
+                    False,
+                    "Avahi daemon not running. Start with: sudo systemctl start avahi-daemon",
+                )
         except FileNotFoundError:
             # No systemctl, try checking if process is running
             try:

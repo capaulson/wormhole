@@ -393,7 +393,9 @@ def attach(session_name: str, use_screen: bool) -> None:
         click.echo("─" * 50)
         result = subprocess.run(["claude", "--resume", claude_session_id])
         click.echo("─" * 50)
-        click.echo(f"Claude exited (code {result.returncode}). Session '{session_name}' remains active.")
+        click.echo(
+            f"Claude exited (code {result.returncode}). Session '{session_name}' remains active."
+        )
 
 
 @main.command()
@@ -560,13 +562,13 @@ def service() -> None:
 def service_install() -> None:
     """Install daemon as a system service (starts on login)."""
     from wormhole.platform import (
+        get_launchd_plist_path,
         get_service_manager,
+        get_systemd_unit_path,
         launchd_install,
         launchd_is_installed,
-        get_launchd_plist_path,
         systemd_install,
         systemd_is_installed,
-        get_systemd_unit_path,
     )
 
     manager = get_service_manager()
@@ -596,7 +598,9 @@ def service_install() -> None:
         if success:
             click.secho(msg, fg="green")
             click.echo("  Daemon will now start automatically on login")
-            click.echo("  Note: Run 'loginctl enable-linger $USER' for service to run without login")
+            click.echo(
+                "  Note: Run 'loginctl enable-linger $USER' for service to run without login"
+            )
         else:
             click.secho(f"Failed: {msg}", fg="red", err=True)
 
@@ -611,10 +615,10 @@ def service_uninstall() -> None:
     """Uninstall the system service."""
     from wormhole.platform import (
         get_service_manager,
-        launchd_uninstall,
         launchd_is_installed,
-        systemd_uninstall,
+        launchd_uninstall,
         systemd_is_installed,
+        systemd_uninstall,
     )
 
     manager = get_service_manager()
@@ -650,10 +654,10 @@ def service_start() -> None:
     """Start the daemon service."""
     from wormhole.platform import (
         get_service_manager,
-        launchd_start,
         launchd_is_installed,
-        systemd_start,
+        launchd_start,
         systemd_is_installed,
+        systemd_start,
     )
 
     manager = get_service_manager()
@@ -692,10 +696,10 @@ def service_stop() -> None:
     """Stop the daemon service."""
     from wormhole.platform import (
         get_service_manager,
-        launchd_stop,
         launchd_is_installed,
-        systemd_stop,
+        launchd_stop,
         systemd_is_installed,
+        systemd_stop,
     )
 
     manager = get_service_manager()
@@ -770,14 +774,14 @@ def service_logs(follow: bool, lines: int) -> None:
 def service_status() -> None:
     """Show service status."""
     from wormhole.platform import (
+        check_mdns_support,
+        get_launchd_plist_path,
         get_service_manager,
+        get_systemd_unit_path,
         launchd_is_installed,
         launchd_status,
-        get_launchd_plist_path,
         systemd_is_installed,
         systemd_status,
-        get_systemd_unit_path,
-        check_mdns_support,
     )
 
     manager = get_service_manager()

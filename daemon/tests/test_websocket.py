@@ -58,8 +58,16 @@ class TestWebSocketHandshake:
     """Tests for WebSocket handshake (hello/welcome)."""
 
     @pytest.mark.asyncio
-    async def test_hello_receives_welcome(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_hello_receives_welcome(
+        self,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         ws = MockWebSocket()
 
         # Queue hello message
@@ -78,8 +86,17 @@ class TestWebSocketHandshake:
         assert "sessions" in welcome
 
     @pytest.mark.asyncio
-    async def test_welcome_includes_session_list(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_welcome_includes_session_list(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
 
         # Create a session
         daemon.create_session("test-session", tmp_path)
@@ -100,8 +117,16 @@ class TestEventStreaming:
     """Tests for streaming events to subscribed clients."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_sends_to_all_clients(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_broadcast_sends_to_all_clients(
+        self,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
 
         # Add mock clients
         ws1 = MockWebSocket()
@@ -126,8 +151,16 @@ class TestEventStreaming:
         assert len(ws2.sent_messages) == 1
 
     @pytest.mark.asyncio
-    async def test_broadcast_handles_disconnected_clients(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_broadcast_handles_disconnected_clients(
+        self,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
 
         ws1 = MockWebSocket()
         ws2 = MockWebSocket()
@@ -155,8 +188,17 @@ class TestSubscriptions:
     """Tests for session subscription handling."""
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_specific_sessions(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_subscribe_to_specific_sessions(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         daemon.create_session("session-a", tmp_path / "a")
         daemon.create_session("session-b", tmp_path / "b")
 
@@ -171,8 +213,17 @@ class TestSubscriptions:
         assert "session-b" not in subscribed
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_all_sessions(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_subscribe_to_all_sessions(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         daemon.create_session("session-a", tmp_path / "a")
         daemon.create_session("session-b", tmp_path / "b")
 
@@ -191,9 +242,16 @@ class TestPermissionResponseRouting:
 
     @pytest.mark.asyncio
     async def test_permission_response_routes_to_correct_session(
-        self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
     ) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         session = daemon.create_session("test", tmp_path)
 
         # Create a pending permission in the session
@@ -220,8 +278,17 @@ class TestInputHandling:
     """Tests for handling input messages from phone."""
 
     @pytest.mark.asyncio
-    async def test_input_message_calls_session_query(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_input_message_calls_session_query(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         session = daemon.create_session("test", tmp_path)
 
         # Mock the client
@@ -243,8 +310,17 @@ class TestControlMessages:
     """Tests for control message handling."""
 
     @pytest.mark.asyncio
-    async def test_interrupt_calls_session_interrupt(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_interrupt_calls_session_interrupt(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         session = daemon.create_session("test", tmp_path)
 
         mock_client = AsyncMock()
@@ -265,8 +341,17 @@ class TestSyncMessages:
     """Tests for sync message handling."""
 
     @pytest.mark.asyncio
-    async def test_sync_returns_events_since_sequence(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_sync_returns_events_since_sequence(
+        self,
+        tmp_path: Path,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         session = daemon.create_session("test", tmp_path)
 
         # Add some events to the session
@@ -290,8 +375,16 @@ class TestErrorHandling:
     """Tests for error handling in WebSocket messages."""
 
     @pytest.mark.asyncio
-    async def test_invalid_message_returns_error(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_invalid_message_returns_error(
+        self,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         ws = MockWebSocket()
 
         # Queue invalid JSON
@@ -306,8 +399,16 @@ class TestErrorHandling:
         assert error["code"] == "INVALID_MESSAGE"
 
     @pytest.mark.asyncio
-    async def test_unknown_message_type_returns_error(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
-        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
+    async def test_unknown_message_type_returns_error(
+        self,
+        event_persistence: EventPersistence,
+        session_persistence: SessionPersistence,
+    ) -> None:
+        daemon = WormholeDaemon(
+            port=7117,
+            event_persistence=event_persistence,
+            session_persistence=session_persistence,
+        )
         ws = MockWebSocket()
 
         # Queue unknown message type

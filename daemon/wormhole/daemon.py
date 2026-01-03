@@ -27,6 +27,11 @@ from wormhole.control import (
     parse_control_request,
 )
 from wormhole.discovery import DiscoveryAdvertiser
+from wormhole.persistence import (
+    EventPersistence,
+    PersistedSession,
+    SessionPersistence,
+)
 from wormhole.protocol import (
     ClientMessage,
     ErrorMessage,
@@ -36,11 +41,6 @@ from wormhole.protocol import (
     SessionInfo,
     WelcomeMessage,
     parse_client_message,
-)
-from wormhole.persistence import (
-    EventPersistence,
-    PersistedSession,
-    SessionPersistence,
 )
 from wormhole.session import WormholeSession
 

@@ -15,21 +15,36 @@ from wormhole.session import SessionState, WormholeSession
 class TestSessionCreation:
     """Tests for session creation."""
 
-    def test_creates_with_correct_state(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    def test_creates_with_correct_state(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
         assert session.name == "test"
         assert session.directory == tmp_path
         assert session.state == SessionState.IDLE
         assert session.claude_session_id is None
         assert session.cost_usd == 0.0
 
-    def test_event_buffer_empty_initially(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    def test_event_buffer_empty_initially(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
         events = session.get_events_since(0)
         assert events == []
 
-    def test_custom_buffer_size(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, buffer_size_bytes=1024, event_persistence=event_persistence)
+    def test_custom_buffer_size(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test",
+            directory=tmp_path,
+            buffer_size_bytes=1024,
+            event_persistence=event_persistence,
+        )
         assert session.buffer_size_bytes == 1024
 
 
@@ -37,14 +52,23 @@ class TestEventBuffering:
     """Tests for event buffering."""
 
     @pytest.mark.asyncio
-    async def test_buffer_respects_max_size(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
+    async def test_buffer_respects_max_size(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
         # Use a small buffer that can hold ~2-3 events
         # Each event is roughly 100 bytes overhead + message content
-        session = WormholeSession(name="test", directory=tmp_path, buffer_size_bytes=500, event_persistence=event_persistence)
+        session = WormholeSession(
+            name="test",
+            directory=tmp_path,
+            buffer_size_bytes=500,
+            event_persistence=event_persistence,
+        )
 
         # Simulate adding events via internal method - each ~150 bytes
         for i in range(10):
-            await session._handle_sdk_message({"type": "test", "index": i, "padding": "x" * 50})
+            await session._handle_sdk_message(
+                {"type": "test", "index": i, "padding": "x" * 50}
+            )
 
         # Memory buffer should have evicted older events to stay under size limit
         # But persisted events should have all 10
@@ -56,9 +80,13 @@ class TestEventBuffering:
         assert events[-1].message["index"] == 9
 
     @pytest.mark.asyncio
-    async def test_get_events_since_sequence(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
+    async def test_get_events_since_sequence(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
         # Use default buffer size (2MB) - plenty of room for small events
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         for i in range(5):
             await session._handle_sdk_message({"type": "test", "index": i})
@@ -70,8 +98,12 @@ class TestEventBuffering:
         assert events[1].sequence == 5
 
     @pytest.mark.asyncio
-    async def test_events_have_correct_timestamps(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_events_have_correct_timestamps(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         await session._handle_sdk_message({"type": "test"})
         events = session.get_events_since(0)
@@ -85,8 +117,12 @@ class TestSDKMessageHandling:
     """Tests for handling SDK messages."""
 
     @pytest.mark.asyncio
-    async def test_captures_session_id_from_init(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_captures_session_id_from_init(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         # SDK SystemMessage structure
         await session._handle_sdk_message({
@@ -101,8 +137,12 @@ class TestSDKMessageHandling:
         assert session.claude_session_id == "abc-123-def"
 
     @pytest.mark.asyncio
-    async def test_updates_cost_from_result(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_updates_cost_from_result(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         await session._handle_sdk_message({
             "subtype": "success",
@@ -113,8 +153,12 @@ class TestSDKMessageHandling:
         assert session.cost_usd == 0.0234
 
     @pytest.mark.asyncio
-    async def test_broadcasts_events(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_broadcasts_events(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         received_messages: list[Any] = []
 
@@ -130,9 +174,13 @@ class TestSDKMessageHandling:
         assert received_messages[0].sequence == 1
 
     @pytest.mark.asyncio
-    async def test_handles_dataclass_messages(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
+    async def test_handles_dataclass_messages(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
         """Test that SDK dataclass messages are properly converted."""
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         @dataclass
         class MockSDKMessage:
@@ -148,15 +196,23 @@ class TestSDKMessageHandling:
 class TestPermissionHandling:
     """Tests for permission request/response."""
 
-    def test_respond_to_unknown_request_returns_false(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    def test_respond_to_unknown_request_returns_false(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
         result = session.respond_to_permission("nonexistent", "allow")
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_permission_callback_blocks_until_response(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
+    async def test_permission_callback_blocks_until_response(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
         """Verify can_use_tool blocks until permission response received."""
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         received_requests: list[Any] = []
 
@@ -201,8 +257,12 @@ class TestPermissionHandling:
         assert result.behavior == "allow"
 
     @pytest.mark.asyncio
-    async def test_permission_deny_returns_correct_result(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_permission_deny_returns_correct_result(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         received_requests: list[Any] = []
 
@@ -232,9 +292,13 @@ class TestPermissionHandling:
         assert result.interrupt is False
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_permissions(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
+    async def test_multiple_concurrent_permissions(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
         """Test handling multiple permission requests concurrently."""
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         received_requests: list[Any] = []
 
@@ -271,13 +335,21 @@ class TestPermissionHandling:
 class TestSessionStateTransitions:
     """Test session state machine transitions."""
 
-    def test_initial_state_is_idle(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    def test_initial_state_is_idle(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
         assert session.state == SessionState.IDLE
 
     @pytest.mark.asyncio
-    async def test_query_changes_state_to_working(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_query_changes_state_to_working(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
 
         # Mock the client
         mock_client = AsyncMock()
@@ -291,8 +363,12 @@ class TestSessionStateTransitions:
         mock_client.query.assert_called_once_with("test prompt")
 
     @pytest.mark.asyncio
-    async def test_stop_resets_state_to_idle(self, tmp_path: Path, event_persistence: EventPersistence) -> None:
-        session = WormholeSession(name="test", directory=tmp_path, event_persistence=event_persistence)
+    async def test_stop_resets_state_to_idle(
+        self, tmp_path: Path, event_persistence: EventPersistence
+    ) -> None:
+        session = WormholeSession(
+            name="test", directory=tmp_path, event_persistence=event_persistence
+        )
         session.state = SessionState.WORKING
 
         mock_client = AsyncMock()
