@@ -9,6 +9,7 @@ protocol MachineConnectionDelegate: AnyObject {
 
 /// Manages WebSocket connection and sessions for a single machine
 @MainActor
+@Observable
 final class MachineConnection: Identifiable {
     let id: String
     let machine: Machine
