@@ -161,6 +161,25 @@ struct SessionInfo: Codable, Sendable {
         case pendingPermissions = "pending_permissions"
     }
 
+    /// Memberwise initializer for tests and direct creation
+    init(
+        name: String,
+        directory: String,
+        state: String,
+        claudeSessionId: String?,
+        costUsd: Double,
+        lastActivity: Date?,
+        pendingPermissions: [PendingPermissionInfo] = []
+    ) {
+        self.name = name
+        self.directory = directory
+        self.state = state
+        self.claudeSessionId = claudeSessionId
+        self.costUsd = costUsd
+        self.lastActivity = lastActivity
+        self.pendingPermissions = pendingPermissions
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
