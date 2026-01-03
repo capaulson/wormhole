@@ -7,12 +7,13 @@ Remote Claude Code session manager. Monitor and control Claude Code sessions fro
 - **Remote Monitoring**: Watch Claude Code work in real-time from your phone
 - **Permission Control**: Approve or deny tool usage remotely (file writes, bash commands, etc.)
 - **Multi-Session**: Manage multiple Claude Code sessions across projects
-- **Auto-Discovery**: Automatically find Wormhole daemons on your local network via Bonjour
+- **Auto-Discovery**: Automatically find Wormhole daemons on your local network via Bonjour/Avahi
 - **Quick Actions**: Stop, interrupt, or send messages from anywhere
+- **Cross-Platform**: Runs on macOS and Linux
 
 ## Requirements
 
-- macOS with Python 3.11+
+- **macOS** or **Linux** with Python 3.11+
 - [uv](https://github.com/astral-sh/uv) package manager
 - Claude Code CLI installed and authenticated (`claude` command)
 - iPhone running iOS 17+
@@ -33,6 +34,24 @@ uv tool install -e .
 uv sync
 ```
 
+### Linux Additional Setup
+
+On Linux, install Avahi for device discovery:
+
+```bash
+# Debian/Ubuntu
+sudo apt install avahi-daemon
+sudo systemctl enable --now avahi-daemon
+
+# Fedora/RHEL
+sudo dnf install avahi
+sudo systemctl enable --now avahi-daemon
+
+# Arch
+sudo pacman -S avahi
+sudo systemctl enable --now avahi-daemon
+```
+
 ### 2. Install the iOS App
 
 **Option A: Build from source**
@@ -50,17 +69,37 @@ Then build and run on your device (Cmd+R in Xcode).
 
 ### Start the Daemon
 
-Run this on your Mac where you want to use Claude Code:
+The daemon **auto-starts** when you run any wormhole command. You can also start it manually:
 
 ```bash
 wormhole daemon
 ```
 
-The daemon starts on port 7117 and advertises itself via Bonjour. You should see:
+The daemon starts on port 7117 and advertises itself via Bonjour/Avahi. You should see:
 ```
 Starting Wormhole daemon on port 7117...
 Wormhole daemon ready (port=7117, control_socket=/tmp/wormhole.sock)
 ```
+
+#### Install as a System Service (Optional)
+
+For automatic startup on login:
+
+```bash
+# Install and enable the service
+wormhole service install
+
+# Check service status
+wormhole service status
+
+# Other service commands
+wormhole service start
+wormhole service stop
+wormhole service logs
+wormhole service uninstall
+```
+
+This uses **launchd** on macOS and **systemd** on Linux.
 
 ### Create a Session
 
@@ -119,6 +158,30 @@ wormhole status
 
 # Attach to session in terminal (for direct interaction)
 wormhole attach SESSION_NAME
+
+# Service management (install for auto-start on login)
+wormhole service install    # Install as system service
+wormhole service uninstall  # Remove system service
+wormhole service status     # Check service and mDNS status
+wormhole service logs -f    # Follow daemon logs
+```
+
+### Session Options
+
+Pass Claude CLI options when creating a session:
+
+```bash
+# Skip permission prompts (use with caution!)
+wormhole open --name my-session --dangerously-skip-permissions
+
+# Use a specific model
+wormhole open --name my-session --model sonnet
+
+# Set a cost limit
+wormhole open --name my-session --max-budget-usd 1.00
+
+# Limit conversation turns
+wormhole open --name my-session --max-turns 10
 ```
 
 ### Daemon Options
@@ -128,7 +191,7 @@ wormhole daemon [OPTIONS]
 
 Options:
   --port INTEGER      WebSocket port (default: 7117)
-  --no-discovery      Disable Bonjour advertisement
+  --no-discovery      Disable Bonjour/Avahi advertisement
   --log-level TEXT    Log level: DEBUG, INFO, WARNING, ERROR
   --log-json          Output logs as JSON
 ```
@@ -156,7 +219,8 @@ Environment variables override config file:
 Another process is using port 7117:
 ```bash
 # Find what's using the port
-lsof -i :7117
+lsof -i :7117          # macOS
+ss -tlnp | grep 7117   # Linux
 
 # Kill it or use a different port
 wormhole daemon --port 7118
@@ -165,12 +229,31 @@ wormhole daemon --port 7118
 ### iPhone can't find the daemon
 
 1. Make sure both devices are on the **same WiFi network**
-2. Check your Mac's firewall allows incoming connections on port 7117
-3. Try adding the machine manually: tap **+** in the app and enter your Mac's IP address
+2. Check your firewall allows incoming connections on port 7117
+3. Try adding the machine manually: tap **+** in the app and enter your machine's IP address
 
-To find your Mac's IP:
+To find your IP:
 ```bash
+# macOS
 ipconfig getifaddr en0
+
+# Linux
+hostname -I | awk '{print $1}'
+```
+
+### Linux: mDNS Discovery Not Working
+
+Check Avahi is running:
+```bash
+# Check status
+wormhole service status
+
+# If Avahi not running:
+sudo systemctl start avahi-daemon
+sudo systemctl enable avahi-daemon
+
+# Verify mDNS is working
+avahi-browse -a
 ```
 
 ### Sessions not appearing
