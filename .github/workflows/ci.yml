@@ -76,7 +76,7 @@ jobs:
 
   ios-build:
     name: iOS Build
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
         working-directory: ios
         run: |
           xcodebuild -scheme Wormhole \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             -configuration Debug \
             build
 
@@ -100,6 +100,6 @@ jobs:
         working-directory: ios
         run: |
           xcodebuild -scheme Wormhole \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             -configuration Debug \
             test
