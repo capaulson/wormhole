@@ -11,11 +11,27 @@ struct SessionRowView: View {
                 Text(session.name)
                     .font(.headline)
 
-                Text(session.directory)
+                HStack(spacing: 8) {
+                    // Machine indicator with connection status
+                    Label {
+                        Text(session.machineName)
+                    } icon: {
+                        Circle()
+                            .fill(session.machineConnected ? .green : .gray)
+                            .frame(width: 6, height: 6)
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+
+                    Text("•")
+                        .foregroundStyle(.quaternary)
+
+                    Text(session.directory)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
 
             Spacer()
@@ -53,6 +69,8 @@ struct StateBadge: View {
         SessionRowView(session: Session(
             name: "myproject-abc1",
             directory: "/Users/dev/myproject",
+            machineId: "mac1",
+            machineName: "MacBook Pro",
             state: .idle,
             costUsd: 0.0234
         ))
@@ -60,18 +78,24 @@ struct StateBadge: View {
         SessionRowView(session: Session(
             name: "webapp-xyz9",
             directory: "/Users/dev/webapp",
+            machineId: "mac2",
+            machineName: "Mac Mini",
             state: .working
         ))
 
         SessionRowView(session: Session(
             name: "api-server-1234",
             directory: "/Users/dev/api-server",
+            machineId: "linux1",
+            machineName: "Linux Server",
             state: .awaitingApproval
         ))
 
         SessionRowView(session: Session(
             name: "broken-session",
             directory: "/Users/dev/broken",
+            machineId: "mac1",
+            machineName: "MacBook Pro",
             state: .error
         ))
     }

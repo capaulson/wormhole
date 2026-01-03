@@ -52,12 +52,24 @@ enum SessionState: String, Codable {
         case .error: return "red"
         }
     }
+
+    /// Sort priority - higher = should appear first
+    var sortPriority: Int {
+        switch self {
+        case .awaitingApproval: return 3  // Needs attention first
+        case .working: return 2
+        case .error: return 1
+        case .idle: return 0
+        }
+    }
 }
 
 /// A Claude Code session managed by the daemon
 @Observable
 final class Session: Identifiable {
-    let id: String
+    // Unique ID is now compound: machineId:sessionName
+    var id: String { "\(machineId):\(name)" }
+
     let name: String
     let directory: String
     var state: SessionState
@@ -69,6 +81,11 @@ final class Session: Identifiable {
     var pendingPermission: PermissionRequestMessage?
     var lastSeenSequence: Int = 0
     private var processedEventIds: Set<String> = []
+
+    // Machine context - which machine this session belongs to
+    let machineId: String
+    var machineName: String
+    var machineConnected: Bool = true
 
     /// Helper to check if an AI event has displayable content
     private func hasDisplayableContent(_ event: EventMessage) -> Bool {
@@ -107,27 +124,32 @@ final class Session: Identifiable {
     }
 
     init(
-        id: String = UUID().uuidString,
         name: String,
         directory: String,
+        machineId: String,
+        machineName: String,
         state: SessionState = .idle,
         claudeSessionId: String? = nil,
         costUsd: Double = 0.0,
         lastActivity: Date = Date()
     ) {
-        self.id = id
         self.name = name
         self.directory = directory
+        self.machineId = machineId
+        self.machineName = machineName
         self.state = state
         self.claudeSessionId = claudeSessionId
         self.costUsd = costUsd
         self.lastActivity = lastActivity
     }
 
-    convenience init(from info: SessionInfo) {
+    /// Create session from server info with machine context
+    convenience init(from info: SessionInfo, machineId: String, machineName: String) {
         self.init(
             name: info.name,
             directory: info.directory,
+            machineId: machineId,
+            machineName: machineName,
             state: SessionState(rawValue: info.state) ?? .idle,
             claudeSessionId: info.claudeSessionId,
             costUsd: info.costUsd,

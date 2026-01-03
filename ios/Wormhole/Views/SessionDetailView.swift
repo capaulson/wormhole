@@ -6,6 +6,11 @@ struct SessionDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Machine connection indicator
+            if !session.machineConnected {
+                DisconnectedBanner(machineName: session.machineName)
+            }
+
             // Working indicator
             if session.state == .working {
                 WorkingIndicatorView()
@@ -28,11 +33,26 @@ struct SessionDetailView: View {
         .navigationTitle(session.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 2) {
+                    Text(session.name)
+                        .font(.headline)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(session.machineConnected ? .green : .gray)
+                            .frame(width: 6, height: 6)
+                        Text(session.machineName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {
                         Task {
-                            await appState.sendControl(session: session.name, action: .interrupt)
+                            await appState.sendControl(sessionId: session.id, action: .interrupt)
                         }
                     } label: {
                         Label("Stop", systemImage: "stop.fill")
@@ -40,7 +60,7 @@ struct SessionDetailView: View {
 
                     Button {
                         Task {
-                            await appState.sendControl(session: session.name, action: .plan)
+                            await appState.sendControl(sessionId: session.id, action: .plan)
                         }
                     } label: {
                         Label("Plan Mode", systemImage: "list.bullet.clipboard")
@@ -48,7 +68,7 @@ struct SessionDetailView: View {
 
                     Button {
                         Task {
-                            await appState.sendControl(session: session.name, action: .compact)
+                            await appState.sendControl(sessionId: session.id, action: .compact)
                         }
                     } label: {
                         Label("Compact", systemImage: "arrow.down.left.and.arrow.up.right")
@@ -58,7 +78,7 @@ struct SessionDetailView: View {
 
                     Button(role: .destructive) {
                         Task {
-                            await appState.sendControl(session: session.name, action: .clear)
+                            await appState.sendControl(sessionId: session.id, action: .clear)
                         }
                     } label: {
                         Label("Clear", systemImage: "trash")
@@ -68,17 +88,23 @@ struct SessionDetailView: View {
                 }
             }
         }
-        .onAppear {
-            // Request sync if we have a last seen sequence
-            if session.lastSeenSequence > 0 {
-                Task {
-                    await appState.requestSync(
-                        session: session.name,
-                        lastSeenSequence: session.lastSeenSequence
-                    )
-                }
-            }
+        // Sync is now handled automatically on welcome by MachineConnection
+    }
+}
+
+struct DisconnectedBanner: View {
+    let machineName: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+            Text("\(machineName) disconnected")
+                .font(.subheadline)
         }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(.orange)
     }
 }
 
@@ -317,6 +343,7 @@ struct PermissionCardView: View {
                 Button {
                     Task {
                         await appState.sendPermissionResponse(
+                            sessionId: session.id,
                             requestId: permission.requestId,
                             decision: .deny
                         )
@@ -330,6 +357,7 @@ struct PermissionCardView: View {
                 Button {
                     Task {
                         await appState.sendPermissionResponse(
+                            sessionId: session.id,
                             requestId: permission.requestId,
                             decision: .allow
                         )
@@ -369,7 +397,7 @@ struct InputBarView: View {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title2)
             }
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !session.machineConnected)
         }
         .padding()
         .background(.bar)
@@ -377,10 +405,10 @@ struct InputBarView: View {
 
     func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty, session.machineConnected else { return }
 
         Task {
-            await appState.sendInput(session: session.name, text: text)
+            await appState.sendInput(sessionId: session.id, text: text)
             inputText = ""
         }
     }
@@ -391,6 +419,8 @@ struct InputBarView: View {
         SessionDetailView(session: Session(
             name: "myproject-abc1",
             directory: "/Users/dev/myproject",
+            machineId: "mac1",
+            machineName: "MacBook Pro",
             state: .working,
             costUsd: 0.0234
         ))

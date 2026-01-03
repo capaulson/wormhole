@@ -1,44 +1,81 @@
 import SwiftUI
 
+/// Lists all sessions from all connected machines
 struct SessionListView: View {
     @Environment(AppState.self) private var appState
-    let machineName: String
 
     var body: some View {
         List {
-            if appState.sessions.isEmpty {
-                ContentUnavailableView(
-                    "No Sessions",
-                    systemImage: "terminal",
-                    description: Text("No Claude Code sessions are active on \(machineName)")
-                )
-                .listRowBackground(Color.clear)
+            if appState.allSessions.isEmpty {
+                emptyStateView
+                    .listRowBackground(Color.clear)
             } else {
-                ForEach(appState.sessions) { session in
-                    NavigationLink(value: session.id) {
-                        SessionRowView(session: session)
+                // Sessions needing attention first
+                if !appState.sessionsNeedingAttention.isEmpty {
+                    Section {
+                        ForEach(appState.sessionsNeedingAttention) { session in
+                            NavigationLink(value: session.id) {
+                                SessionRowView(session: session)
+                            }
+                        }
+                    } header: {
+                        Label("Needs Attention", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.purple)
+                    }
+                }
+
+                // All other sessions
+                Section {
+                    ForEach(otherSessions) { session in
+                        NavigationLink(value: session.id) {
+                            SessionRowView(session: session)
+                        }
+                    }
+                } header: {
+                    if !appState.sessionsNeedingAttention.isEmpty {
+                        Text("All Sessions")
                     }
                 }
             }
         }
-        .navigationTitle(machineName)
         .navigationDestination(for: String.self) { sessionId in
-            if let session = appState.sessions.first(where: { $0.id == sessionId }) {
+            if let session = appState.session(byId: sessionId) {
                 SessionDetailView(session: session)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Disconnect") {
-                    appState.disconnect()
-                }
-            }
-        }
         .overlay(alignment: .bottom) {
-            if let error = appState.connectionError {
+            if let error = appState.lastError {
                 ConnectionErrorBanner(error: error)
             }
         }
+    }
+
+    private var emptyStateView: some View {
+        Group {
+            if appState.hasAnyConnection {
+                ContentUnavailableView(
+                    "No Sessions",
+                    systemImage: "terminal",
+                    description: Text("No Claude Code sessions are active.\nRun 'wormhole open --name <name>' to create one.")
+                )
+            } else if appState.machines.isEmpty {
+                ContentUnavailableView(
+                    "Searching...",
+                    systemImage: "wifi",
+                    description: Text("Looking for Wormhole daemons on your network")
+                )
+            } else {
+                ContentUnavailableView(
+                    "Connecting...",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    description: Text("Connecting to \(appState.machines.count) machine(s)")
+                )
+            }
+        }
+    }
+
+    private var otherSessions: [Session] {
+        appState.allSessions.filter { $0.state != .awaitingApproval }
     }
 }
 
@@ -58,7 +95,7 @@ struct ConnectionErrorBanner: View {
 
 #Preview {
     NavigationStack {
-        SessionListView(machineName: "My Mac")
+        SessionListView()
     }
     .environment(AppState())
 }
