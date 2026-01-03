@@ -1,9 +1,13 @@
-import XCTest
+import Testing
 @testable import Wormhole
 
-final class MachineTests: XCTestCase {
+// MARK: - Machine Tests
 
-    func testConnectionURL() {
+@Suite("Machine Tests")
+struct MachineTests {
+
+    @Test("Connection URL generation")
+    func connectionURL() {
         let machine = Machine(
             id: "test",
             name: "Test Mac",
@@ -11,10 +15,11 @@ final class MachineTests: XCTestCase {
             port: 7117
         )
 
-        XCTAssertEqual(machine.connectionURL?.absoluteString, "ws://192.168.1.100:7117")
+        #expect(machine.connectionURL?.absoluteString == "ws://192.168.1.100:7117")
     }
 
-    func testDisplayNameManual() {
+    @Test("Display name for manual machine")
+    func displayNameManual() {
         let machine = Machine(
             id: "test",
             name: "Test Mac",
@@ -23,10 +28,11 @@ final class MachineTests: XCTestCase {
             isManual: true
         )
 
-        XCTAssertEqual(machine.displayName, "Test Mac (manual)")
+        #expect(machine.displayName == "Test Mac (manual)")
     }
 
-    func testDisplayNameDiscovered() {
+    @Test("Display name for discovered machine")
+    func displayNameDiscovered() {
         let machine = Machine(
             id: "test",
             name: "Test Mac",
@@ -35,27 +41,39 @@ final class MachineTests: XCTestCase {
             isManual: false
         )
 
-        XCTAssertEqual(machine.displayName, "Test Mac")
+        #expect(machine.displayName == "Test Mac")
     }
 }
 
-final class SessionTests: XCTestCase {
+// MARK: - Session State Tests
 
-    func testStateDisplayName() {
-        XCTAssertEqual(SessionState.idle.displayName, "Idle")
-        XCTAssertEqual(SessionState.working.displayName, "Working")
-        XCTAssertEqual(SessionState.awaitingApproval.displayName, "Awaiting Approval")
-        XCTAssertEqual(SessionState.error.displayName, "Error")
+@Suite("Session State Tests")
+struct SessionStateTests {
+
+    @Test("State display names")
+    func stateDisplayName() {
+        #expect(SessionState.idle.displayName == "Idle")
+        #expect(SessionState.working.displayName == "Working")
+        #expect(SessionState.awaitingApproval.displayName == "Awaiting Approval")
+        #expect(SessionState.error.displayName == "Error")
     }
 
-    func testStateBadgeColor() {
-        XCTAssertEqual(SessionState.idle.badgeColor, "blue")
-        XCTAssertEqual(SessionState.working.badgeColor, "yellow")
-        XCTAssertEqual(SessionState.awaitingApproval.badgeColor, "purple")
-        XCTAssertEqual(SessionState.error.badgeColor, "red")
+    @Test("State badge colors")
+    func stateBadgeColor() {
+        #expect(SessionState.idle.badgeColor == "blue")
+        #expect(SessionState.working.badgeColor == "yellow")
+        #expect(SessionState.awaitingApproval.badgeColor == "purple")
+        #expect(SessionState.error.badgeColor == "red")
     }
+}
 
-    func testInitFromSessionInfo() {
+// MARK: - Session Tests
+
+@Suite("Session Tests")
+struct SessionTests {
+
+    @Test("Init from SessionInfo")
+    func initFromSessionInfo() {
         let info = SessionInfo(
             name: "test-abc1",
             directory: "/Users/test/project",
@@ -65,16 +83,19 @@ final class SessionTests: XCTestCase {
             lastActivity: Date()
         )
 
-        let session = Session(from: info)
+        let session = Session(from: info, machineId: "mac1", machineName: "Test Mac")
 
-        XCTAssertEqual(session.name, "test-abc1")
-        XCTAssertEqual(session.directory, "/Users/test/project")
-        XCTAssertEqual(session.state, .working)
-        XCTAssertEqual(session.claudeSessionId, "session-123")
-        XCTAssertEqual(session.costUsd, 0.05)
+        #expect(session.name == "test-abc1")
+        #expect(session.directory == "/Users/test/project")
+        #expect(session.state == .working)
+        #expect(session.claudeSessionId == "session-123")
+        #expect(session.costUsd == 0.05)
+        #expect(session.machineId == "mac1")
+        #expect(session.machineName == "Test Mac")
     }
 
-    func testUnknownState() {
+    @Test("Unknown state defaults to idle")
+    func unknownState() {
         let info = SessionInfo(
             name: "test",
             directory: "/tmp",
@@ -84,32 +105,49 @@ final class SessionTests: XCTestCase {
             lastActivity: Date()
         )
 
-        let session = Session(from: info)
+        let session = Session(from: info, machineId: "mac1", machineName: "Test Mac")
 
         // Should default to idle for unknown states
-        XCTAssertEqual(session.state, .idle)
+        #expect(session.state == .idle)
+    }
+
+    @Test("Session ID is compound of machineId and name")
+    func sessionIdIsCompound() {
+        let session = Session(
+            name: "test-session",
+            directory: "/tmp",
+            machineId: "mac1",
+            machineName: "Test Mac"
+        )
+
+        #expect(session.id == "mac1:test-session")
     }
 }
 
-final class SessionStateCodableTests: XCTestCase {
+// MARK: - Session State Codable Tests
 
-    func testEncoding() throws {
+@Suite("Session State Codable Tests")
+struct SessionStateCodableTests {
+
+    @Test("Encoding session states")
+    func encoding() throws {
         let encoder = JSONEncoder()
 
         let idleData = try encoder.encode(SessionState.idle)
-        XCTAssertEqual(String(data: idleData, encoding: .utf8), "\"idle\"")
+        #expect(String(data: idleData, encoding: .utf8) == "\"idle\"")
 
         let awaitingData = try encoder.encode(SessionState.awaitingApproval)
-        XCTAssertEqual(String(data: awaitingData, encoding: .utf8), "\"awaiting_approval\"")
+        #expect(String(data: awaitingData, encoding: .utf8) == "\"awaiting_approval\"")
     }
 
-    func testDecoding() throws {
+    @Test("Decoding session states")
+    func decoding() throws {
         let decoder = JSONDecoder()
 
         let idle = try decoder.decode(SessionState.self, from: "\"idle\"".data(using: .utf8)!)
-        XCTAssertEqual(idle, .idle)
+        #expect(idle == .idle)
 
         let awaiting = try decoder.decode(SessionState.self, from: "\"awaiting_approval\"".data(using: .utf8)!)
-        XCTAssertEqual(awaiting, .awaitingApproval)
+        #expect(awaiting == .awaitingApproval)
     }
 }
