@@ -208,6 +208,10 @@ class WormholeSession:
         if self.state == SessionState.ERROR or not self._client:
             await self._restart()
 
+        # After restart, client should be available
+        if not self._client:
+            raise RuntimeError("Failed to start Claude session")
+
         self.state = SessionState.WORKING
         self.last_activity = datetime.now()
 
@@ -215,10 +219,12 @@ class WormholeSession:
             await self._client.query(text)
             # Start receiving responses in background
             asyncio.create_task(self._receive_responses())
-        except Exception:
+        except Exception as e:
             # If query fails, try to restart and retry once
             self.state = SessionState.ERROR
             await self._restart()
+            if not self._client:
+                raise RuntimeError("Failed to restart Claude session") from e
             self.state = SessionState.WORKING
             await self._client.query(text)
             asyncio.create_task(self._receive_responses())

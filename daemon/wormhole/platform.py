@@ -376,7 +376,7 @@ def systemd_status() -> tuple[bool, str]:
     return False, f"Service {status}"
 
 
-def systemd_logs(follow: bool = False, lines: int = 50) -> subprocess.Popen | str:
+def systemd_logs(follow: bool = False, lines: int = 50) -> subprocess.Popen[bytes] | str:
     """Get systemd service logs.
 
     If follow=True, returns a Popen object for streaming.
