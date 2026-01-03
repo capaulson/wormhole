@@ -18,6 +18,19 @@ final class AppState: MachineConnectionDelegate {
     // Error tracking
     var lastError: String?
 
+    // Settings - auto-approve all permission requests
+    var autoApprovePermissions: Bool {
+        get {
+            access(keyPath: \.autoApprovePermissions)
+            return UserDefaults.standard.bool(forKey: "autoApprovePermissions")
+        }
+        set {
+            withMutation(keyPath: \.autoApprovePermissions) {
+                UserDefaults.standard.set(newValue, forKey: "autoApprovePermissions")
+            }
+        }
+    }
+
     // MARK: - Computed Properties
 
     /// All sessions from all connected machines, sorted by priority
@@ -237,6 +250,21 @@ final class AppState: MachineConnectionDelegate {
             switch message {
             case .error(let error):
                 lastError = error.message
+
+            case .permissionRequest(let request):
+                // Auto-approve if setting is enabled
+                if autoApprovePermissions {
+                    await connection.sendPermissionResponse(
+                        requestId: request.requestId,
+                        decision: .allow
+                    )
+                    // Clear the pending permission that was just set
+                    if let session = connection.sessions.first(where: { $0.name == request.sessionName }) {
+                        session.pendingPermission = nil
+                        session.state = .working
+                    }
+                }
+
             default:
                 break
             }

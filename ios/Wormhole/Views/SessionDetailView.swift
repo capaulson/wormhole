@@ -11,6 +11,11 @@ struct SessionDetailView: View {
                 DisconnectedBanner(machineName: session.machineName)
             }
 
+            // Auto-approve indicator
+            if appState.autoApprovePermissions {
+                AutoApproveBanner()
+            }
+
             // Working indicator
             if session.state == .working {
                 WorkingIndicatorView()
@@ -50,6 +55,16 @@ struct SessionDetailView: View {
 
             ToolbarItem(placement: .primaryAction) {
                 Menu {
+                    // Auto-approve toggle
+                    Toggle(isOn: Binding(
+                        get: { appState.autoApprovePermissions },
+                        set: { appState.autoApprovePermissions = $0 }
+                    )) {
+                        Label("Auto-Approve", systemImage: "checkmark.shield")
+                    }
+
+                    Divider()
+
                     Button {
                         Task {
                             await appState.sendControl(sessionId: session.id, action: .interrupt)
@@ -108,6 +123,20 @@ struct DisconnectedBanner: View {
     }
 }
 
+struct AutoApproveBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.shield.fill")
+            Text("Auto-approving all permissions")
+                .font(.subheadline)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(.green.opacity(0.8))
+    }
+}
+
 struct WorkingIndicatorView: View {
     var body: some View {
         HStack(spacing: 8) {
@@ -136,6 +165,12 @@ struct EventStreamView: View {
                     }
                 }
                 .padding()
+            }
+            .onAppear {
+                // Scroll to bottom when view appears
+                if let lastMessage = session.chatMessages.last {
+                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                }
             }
             .onChange(of: session.chatMessages.count) { _, _ in
                 if let lastMessage = session.chatMessages.last {

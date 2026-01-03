@@ -28,6 +28,58 @@ def get_daemon_paths() -> tuple[Path, Path, Path]:
     return data_dir, data_dir / "daemon.pid", data_dir / "daemon.log"
 
 
+def kill_process_on_port(port: int) -> bool:
+    """Kill any process using the specified port. Returns True if a process was killed."""
+    import platform
+
+    try:
+        if platform.system() == "Darwin":
+            # macOS: use lsof to find process
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split("\n")
+                for pid_str in pids:
+                    try:
+                        pid = int(pid_str.strip())
+                        os.kill(pid, signal.SIGTERM)
+                        click.echo(f"Killed existing process {pid} on port {port}")
+                    except (ValueError, ProcessLookupError):
+                        pass
+                # Give it a moment to die
+                time.sleep(0.5)
+                return True
+        else:
+            # Linux: use ss or netstat
+            result = subprocess.run(
+                ["ss", "-tlnp", f"sport = :{port}"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                # Parse output to find PIDs
+                import re
+                for line in result.stdout.split("\n"):
+                    match = re.search(r"pid=(\d+)", line)
+                    if match:
+                        try:
+                            pid = int(match.group(1))
+                            os.kill(pid, signal.SIGTERM)
+                            click.echo(f"Killed existing process {pid} on port {port}")
+                        except (ValueError, ProcessLookupError):
+                            pass
+                time.sleep(0.5)
+                return True
+    except FileNotFoundError:
+        # lsof or ss not available
+        pass
+
+    return False
+
+
 def is_daemon_running() -> bool:
     """Check if daemon is running."""
     socket_path = get_socket_path()
@@ -154,6 +206,9 @@ def daemon(port: int, no_discovery: bool, log_level: str, log_json: bool) -> Non
     from wormhole.log_config import setup_logging
 
     setup_logging(level=log_level, json_output=log_json)
+
+    # Kill any existing process using this port
+    kill_process_on_port(port)
 
     click.echo(f"Starting Wormhole daemon on port {port}...")
     d = WormholeDaemon(port=port, enable_discovery=not no_discovery)

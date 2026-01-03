@@ -160,6 +160,12 @@ final class MachineConnection: Identifiable {
            let newState = SessionState(rawValue: stateStr) {
             session.state = newState
         }
+
+        // Detect result message (Claude finished) - set state to idle
+        if let msgType = event.message["type"]?.value as? String, msgType == "result" {
+            session.state = .idle
+            session.pendingPermission = nil  // Clear any pending permission
+        }
     }
 
     private func handlePermissionRequest(_ request: PermissionRequestMessage) {

@@ -86,6 +86,9 @@ class WormholeSession:
         # Callback to persist session state changes
         self._persistence_callback: Any = None
 
+        # Store original options for restart
+        self._startup_options: dict[str, Any] = {}
+
     def set_broadcast_callback(self, callback: Any) -> None:
         """Set callback for broadcasting events to connected clients."""
         self._broadcast_callback = callback
@@ -103,6 +106,10 @@ class WormholeSession:
 
         logger = logging.getLogger(__name__)
         options = dict(options) if options else {}  # Make a copy
+
+        # Store original options for restart (only on first call)
+        if not self._startup_options:
+            self._startup_options = dict(options)
 
         # Use system claude CLI if available (for Max plan support)
         cli_path = shutil.which("claude")
@@ -122,6 +129,10 @@ class WormholeSession:
         elif options.pop("plan", None) is not None:
             permission_mode = "plan"
 
+        # Enable continue_conversation by default for multi-turn conversations
+        if "continue_conversation" not in options:
+            options["continue_conversation"] = True
+
         # SDK boolean options - convert None to True
         sdk_bool_options = [
             "continue_conversation", "include_partial_messages",
@@ -137,6 +148,11 @@ class WormholeSession:
             "cli_path": cli_path,
             "env": {"ANTHROPIC_API_KEY": ""},  # Override API key to force Max plan
             "model": options.pop("model", "opus"),
+            # CRITICAL: Use preset system prompt to preserve Claude Code's default prompt
+            # If system_prompt is None, SDK passes --system-prompt "" which REPLACES
+            # the default prompt, removing all tool awareness. Using {"type": "preset", "append": ""}
+            # preserves the default prompt while allowing optional additions.
+            "system_prompt": options.pop("system_prompt", {"type": "preset", "append": ""}),
         }
 
         # Add permission handling
@@ -147,7 +163,7 @@ class WormholeSession:
 
         # Map known options to SDK parameters
         known_sdk_opts = [
-            "system_prompt", "max_turns", "max_budget_usd", "resume",
+            "max_turns", "max_budget_usd", "resume",
             "continue_conversation", "include_partial_messages",
             "fork_session", "enable_file_checkpointing", "max_thinking_tokens",
             "tools", "allowed_tools", "disallowed_tools", "fallback_model",
@@ -208,7 +224,7 @@ class WormholeSession:
             asyncio.create_task(self._receive_responses())
 
     async def _restart(self) -> None:
-        """Restart the Claude SDK client."""
+        """Restart the Claude SDK client, resuming the existing Claude session if possible."""
         import logging
 
         logger = logging.getLogger(__name__)
@@ -222,8 +238,16 @@ class WormholeSession:
                 pass
             self._client = None
 
-        # Start fresh
-        await self.start()
+        # Prepare restart options from stored originals
+        restart_options = dict(self._startup_options)
+
+        # CRITICAL: Resume the existing Claude session if we have a session ID
+        # This ensures conversation context (tools, codebase knowledge) is preserved
+        if self.claude_session_id:
+            restart_options["resume"] = self.claude_session_id
+            logger.info(f"Resuming Claude session: {self.claude_session_id}")
+
+        await self.start(restart_options)
         self.state = SessionState.IDLE
 
     async def interrupt(self) -> None:
