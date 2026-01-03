@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from wormhole.daemon import WormholeDaemon
+from wormhole.persistence import EventPersistence, SessionPersistence
 
 
 class TestSessionCreation:
     """Tests for creating sessions."""
 
-    def test_create_session_returns_session(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_create_session_returns_session(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         session = daemon.create_session("test-session", tmp_path)
 
@@ -20,24 +21,24 @@ class TestSessionCreation:
         assert session.name == "test-session"
         assert session.directory == tmp_path.resolve()
 
-    def test_create_session_registers_in_sessions_dict(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_create_session_registers_in_sessions_dict(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         daemon.create_session("test-session", tmp_path)
 
         assert "test-session" in daemon.sessions
         assert daemon.sessions["test-session"].name == "test-session"
 
-    def test_create_session_registers_directory_mapping(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_create_session_registers_directory_mapping(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         daemon.create_session("test-session", tmp_path)
 
         assert tmp_path.resolve() in daemon.directory_to_session
         assert daemon.directory_to_session[tmp_path.resolve()] == "test-session"
 
-    def test_create_session_sets_broadcast_callback(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_create_session_sets_broadcast_callback(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         session = daemon.create_session("test-session", tmp_path)
 
@@ -47,8 +48,8 @@ class TestSessionCreation:
 class TestOneSessionPerDirectory:
     """Tests for one-session-per-directory constraint."""
 
-    def test_duplicate_directory_raises_error(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_duplicate_directory_raises_error(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         daemon.create_session("first-session", tmp_path)
 
@@ -58,8 +59,8 @@ class TestOneSessionPerDirectory:
         assert "already exists" in str(exc_info.value)
         assert "first-session" in str(exc_info.value)
 
-    def test_different_directories_allowed(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_different_directories_allowed(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
         dir_a = tmp_path / "a"
         dir_b = tmp_path / "b"
         dir_a.mkdir()
@@ -72,8 +73,8 @@ class TestOneSessionPerDirectory:
         assert session_b is not None
         assert len(daemon.sessions) == 2
 
-    def test_resolves_relative_paths(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_resolves_relative_paths(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         # Create with explicit path
         daemon.create_session("first", tmp_path)
@@ -87,8 +88,8 @@ class TestSessionClosure:
     """Tests for closing sessions."""
 
     @pytest.mark.asyncio
-    async def test_close_session_removes_from_registry(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    async def test_close_session_removes_from_registry(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         session = daemon.create_session("test-session", tmp_path)
         session._client = AsyncMock()  # Mock to avoid real SDK calls
@@ -99,8 +100,8 @@ class TestSessionClosure:
         assert tmp_path.resolve() not in daemon.directory_to_session
 
     @pytest.mark.asyncio
-    async def test_close_session_stops_sdk_client(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    async def test_close_session_stops_sdk_client(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         session = daemon.create_session("test-session", tmp_path)
         mock_client = AsyncMock()
@@ -111,15 +112,15 @@ class TestSessionClosure:
         mock_client.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_nonexistent_session_no_error(self) -> None:
-        daemon = WormholeDaemon(port=7117)
+    async def test_close_nonexistent_session_no_error(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         # Should not raise
         await daemon.close_session("nonexistent")
 
     @pytest.mark.asyncio
-    async def test_can_create_session_after_closing(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    async def test_can_create_session_after_closing(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         session1 = daemon.create_session("test-session", tmp_path)
         session1._client = AsyncMock()
@@ -134,8 +135,8 @@ class TestSessionClosure:
 class TestMultipleSessions:
     """Tests for handling multiple concurrent sessions."""
 
-    def test_multiple_sessions_tracked_independently(self, tmp_path: Path) -> None:
-        daemon = WormholeDaemon(port=7117)
+    def test_multiple_sessions_tracked_independently(self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         dirs = [tmp_path / f"project{i}" for i in range(3)]
         for d in dirs:
@@ -154,9 +155,9 @@ class TestMultipleSessions:
 
     @pytest.mark.asyncio
     async def test_session_broadcasts_routed_independently(
-        self, tmp_path: Path
+        self, tmp_path: Path, event_persistence: EventPersistence, session_persistence: SessionPersistence
     ) -> None:
-        daemon = WormholeDaemon(port=7117)
+        daemon = WormholeDaemon(port=7117, event_persistence=event_persistence, session_persistence=session_persistence)
 
         received_events: list[tuple[str, object]] = []
 
@@ -166,6 +167,8 @@ class TestMultipleSessions:
         # Override daemon's broadcast BEFORE creating sessions
         daemon._broadcast = capture_broadcast  # type: ignore
 
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
         session_a = daemon.create_session("session-a", tmp_path / "a")
         session_b = daemon.create_session("session-b", tmp_path / "b")
 
@@ -182,16 +185,16 @@ class TestMultipleSessions:
 class TestDaemonInitialization:
     """Tests for daemon initialization."""
 
-    def test_default_port(self) -> None:
-        daemon = WormholeDaemon()
+    def test_default_port(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(event_persistence=event_persistence, session_persistence=session_persistence)
         assert daemon.port == 7117
 
-    def test_custom_port(self) -> None:
-        daemon = WormholeDaemon(port=8080)
+    def test_custom_port(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(port=8080, event_persistence=event_persistence, session_persistence=session_persistence)
         assert daemon.port == 8080
 
-    def test_starts_with_empty_sessions(self) -> None:
-        daemon = WormholeDaemon()
+    def test_starts_with_empty_sessions(self, event_persistence: EventPersistence, session_persistence: SessionPersistence) -> None:
+        daemon = WormholeDaemon(event_persistence=event_persistence, session_persistence=session_persistence)
         assert len(daemon.sessions) == 0
         assert len(daemon.directory_to_session) == 0
         assert len(daemon._clients) == 0

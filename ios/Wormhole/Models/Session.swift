@@ -96,6 +96,9 @@ final class Session: Identifiable {
         events.append(event)
         lastActivity = event.timestamp
 
+        // Track highest seen sequence for sync
+        lastSeenSequence = max(lastSeenSequence, event.sequence)
+
         // Only add to chat if it has content and hasn't been processed
         if hasDisplayableContent(event) && !processedEventIds.contains(event.id) {
             processedEventIds.insert(event.id)

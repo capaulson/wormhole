@@ -37,6 +37,11 @@ from wormhole.protocol import (
     WelcomeMessage,
     parse_client_message,
 )
+from wormhole.persistence import (
+    EventPersistence,
+    PersistedSession,
+    SessionPersistence,
+)
 from wormhole.session import WormholeSession
 
 logger = logging.getLogger(__name__)
@@ -49,6 +54,8 @@ class WormholeDaemon:
         self,
         port: int = 7117,
         enable_discovery: bool = True,
+        event_persistence: EventPersistence | None = None,
+        session_persistence: SessionPersistence | None = None,
     ) -> None:
         self.port = port
         self.enable_discovery = enable_discovery
@@ -57,6 +64,8 @@ class WormholeDaemon:
         self._clients: set[Any] = set()  # WebSocket connections
         self._control_server: asyncio.Server | None = None
         self._discovery: DiscoveryAdvertiser | None = None
+        self._persistence = session_persistence or SessionPersistence()
+        self._event_persistence = event_persistence or EventPersistence()
 
     async def run(self) -> None:
         """Run the daemon."""
@@ -66,6 +75,9 @@ class WormholeDaemon:
             "Starting Wormhole daemon",
             extra={"port": self.port, "discovery": self.enable_discovery},
         )
+
+        # Restore persisted sessions
+        await self._restore_sessions()
 
         # Start control socket
         await self._start_control_socket()
@@ -102,6 +114,40 @@ class WormholeDaemon:
         except Exception as e:
             logger.warning("Failed to start mDNS discovery", exc_info=e)
 
+    async def _restore_sessions(self) -> None:
+        """Restore sessions from persistence."""
+        persisted = self._persistence.load_sessions()
+        if not persisted:
+            return
+
+        logger.info(f"Restoring {len(persisted)} persisted sessions")
+        for p in persisted:
+            try:
+                directory = Path(p.directory)
+                if not directory.exists():
+                    logger.warning(f"Skipping session {p.name}: directory does not exist")
+                    self._persistence.remove_session(p.name)
+                    continue
+
+                session = self.create_session(name=p.name, directory=directory)
+                session.claude_session_id = p.claude_session_id
+                session.cost_usd = p.cost_usd
+
+                await session.start()
+                logger.info(f"Restored session: {p.name}")
+            except Exception as e:
+                logger.warning(f"Failed to restore session {p.name}: {e}")
+                self._persistence.remove_session(p.name)
+
+    def _persist_session(self, session: WormholeSession) -> None:
+        """Persist a session to disk."""
+        self._persistence.add_session(PersistedSession(
+            name=session.name,
+            directory=str(session.directory),
+            claude_session_id=session.claude_session_id,
+            cost_usd=session.cost_usd,
+        ))
+
     async def _start_control_socket(self) -> None:
         """Start the Unix control socket server."""
         socket_path = get_socket_path()
@@ -122,6 +168,11 @@ class WormholeDaemon:
         """Clean up resources."""
         logger.info("Shutting down daemon")
 
+        # Persist all sessions before shutdown (for restoration on restart)
+        for session in self.sessions.values():
+            self._persist_session(session)
+        logger.info(f"Persisted {len(self.sessions)} sessions for restart")
+
         # Stop discovery
         if self._discovery:
             await self._discovery.stop()
@@ -136,9 +187,9 @@ class WormholeDaemon:
         if socket_path.exists():
             socket_path.unlink()
 
-        # Close all sessions
-        for name in list(self.sessions.keys()):
-            await self.close_session(name)
+        # Stop all sessions (but don't remove from persistence)
+        for session in self.sessions.values():
+            await session.stop()
 
         logger.info("Daemon shutdown complete")
 
@@ -275,22 +326,36 @@ class WormholeDaemon:
                 f"A session already exists in this directory: {existing}"
             )
 
-        # Create session
-        session = WormholeSession(name=name, directory=directory)
+        # Create session with shared event persistence
+        session = WormholeSession(
+            name=name,
+            directory=directory,
+            event_persistence=self._event_persistence,
+        )
         session.set_broadcast_callback(self._broadcast)
+
+        # Set up persistence callback for session updates
+        session.set_persistence_callback(self._persist_session)
 
         self.sessions[name] = session
         self.directory_to_session[directory] = name
 
+        # Persist immediately
+        self._persist_session(session)
+
         return session
 
     async def close_session(self, name: str) -> None:
-        """Close and remove a session."""
+        """Close and remove a session (user-initiated)."""
         session = self.sessions.get(name)
         if session:
             await session.stop()
             self.directory_to_session.pop(session.directory, None)
             self.sessions.pop(name, None)
+            # Remove from persistence (user explicitly closed)
+            self._persistence.remove_session(name)
+            # Clear event history (user explicitly closed)
+            self._event_persistence.clear_events(name)
 
     async def _handle_connection(self, websocket: Any) -> None:
         """Handle a new WebSocket connection."""
@@ -417,6 +482,7 @@ class WormholeDaemon:
                             )
                             for p in session.get_pending_permissions()
                         ],
+                        oldest_available_sequence=session.get_oldest_sequence(),
                     )
                     await websocket.send(response.model_dump_json())
 

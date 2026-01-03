@@ -72,11 +72,22 @@ final class AppState {
 
         webSocketService?.onConnectionChange = { [weak self] connected, error in
             Task { @MainActor [weak self] in
+                guard let self = self else { return }
                 print("[AppState] onConnectionChange: connected=\(connected), error=\(error ?? "nil")")
-                self?.isConnected = connected
-                self?.connectionError = error
-                if !connected {
-                    self?.sessions = []
+                let wasConnected = self.isConnected
+                self.isConnected = connected
+                self.connectionError = error
+
+                // Don't clear sessions on disconnect - preserve for reconnection sync
+                // Only clear on explicit disconnect() call
+
+                // On reconnection, request sync for all sessions with known sequence
+                if connected && !wasConnected {
+                    print("[AppState] Reconnected - requesting sync for \(self.sessions.count) sessions")
+                    for session in self.sessions where session.lastSeenSequence > 0 {
+                        print("[AppState] Requesting sync for '\(session.name)' from sequence \(session.lastSeenSequence)")
+                        await self.requestSync(session: session.name, lastSeenSequence: session.lastSeenSequence)
+                    }
                 }
             }
         }

@@ -7,6 +7,8 @@ import logging
 import socket
 from typing import TYPE_CHECKING
 
+from wormhole.platform import check_mdns_support, is_linux
+
 if TYPE_CHECKING:
     from zeroconf import ServiceInfo, Zeroconf
 
@@ -35,6 +37,16 @@ class DiscoveryAdvertiser:
             return
 
         from zeroconf import IPVersion, ServiceInfo, Zeroconf
+
+        # Check platform mDNS support
+        mdns_ok, mdns_msg = check_mdns_support()
+        if not mdns_ok:
+            logger.warning(f"mDNS may not work: {mdns_msg}")
+            if is_linux():
+                logger.warning(
+                    "On Linux, install and start Avahi for device discovery: "
+                    "sudo apt install avahi-daemon && sudo systemctl enable --now avahi-daemon"
+                )
 
         try:
             local_ip = self._get_local_ip()

@@ -129,6 +129,7 @@ class SyncResponseMessage(BaseModel):
     session: str
     events: list[EventMessage]
     pending_permissions: list[PendingPermissionInfo] = []
+    oldest_available_sequence: int = 0  # Oldest sequence still in buffer
 
 
 class ErrorMessage(BaseModel):

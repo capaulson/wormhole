@@ -232,12 +232,14 @@ struct SyncResponseMessage: Codable, Sendable {
     let session: String
     let events: [EventMessage]
     let pendingPermissions: [PendingPermissionInfo]
+    let oldestAvailableSequence: Int
 
     enum CodingKeys: String, CodingKey {
         case type
         case session
         case events
         case pendingPermissions = "pending_permissions"
+        case oldestAvailableSequence = "oldest_available_sequence"
     }
 
     init(from decoder: Decoder) throws {
@@ -246,6 +248,7 @@ struct SyncResponseMessage: Codable, Sendable {
         session = try container.decode(String.self, forKey: .session)
         events = try container.decode([EventMessage].self, forKey: .events)
         pendingPermissions = try container.decodeIfPresent([PendingPermissionInfo].self, forKey: .pendingPermissions) ?? []
+        oldestAvailableSequence = try container.decodeIfPresent(Int.self, forKey: .oldestAvailableSequence) ?? 0
     }
 }
 

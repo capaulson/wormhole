@@ -1,8 +1,23 @@
 """Pytest configuration and fixtures."""
 
+from pathlib import Path
 from typing import Any
 
 import pytest
+
+from wormhole.persistence import EventPersistence, SessionPersistence
+
+
+@pytest.fixture
+def event_persistence(tmp_path: Path) -> EventPersistence:
+    """Create isolated event persistence for each test."""
+    return EventPersistence(base_dir=tmp_path / "events")
+
+
+@pytest.fixture
+def session_persistence(tmp_path: Path) -> SessionPersistence:
+    """Create isolated session persistence for each test."""
+    return SessionPersistence(path=tmp_path / "sessions.json")
 
 
 @pytest.fixture

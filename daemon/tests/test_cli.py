@@ -83,35 +83,37 @@ class TestListCommand:
     def test_list_no_sessions(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = SessionListResponse(sessions=[])
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = SessionListResponse(sessions=[])
 
-            result = runner.invoke(main, ["list"])
+                result = runner.invoke(main, ["list"])
 
-            assert result.exit_code == 0
-            assert "No active sessions" in result.output
+                assert result.exit_code == 0
+                assert "No active sessions" in result.output
 
     def test_list_with_sessions(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = SessionListResponse(
-                sessions=[
-                    SessionInfoResponse(
-                        name="test-session",
-                        directory="/home/user/project",
-                        state="working",
-                        cost_usd=0.05,
-                    ),
-                ]
-            )
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = SessionListResponse(
+                    sessions=[
+                        SessionInfoResponse(
+                            name="test-session",
+                            directory="/home/user/project",
+                            state="working",
+                            cost_usd=0.05,
+                        ),
+                    ]
+                )
 
-            result = runner.invoke(main, ["list"])
+                result = runner.invoke(main, ["list"])
 
-            assert result.exit_code == 0
-            assert "test-session" in result.output
-            assert "working" in result.output
-            assert "/home/user/project" in result.output
+                assert result.exit_code == 0
+                assert "test-session" in result.output
+                assert "working" in result.output
+                assert "/home/user/project" in result.output
 
 
 class TestOpenCommand:
@@ -120,40 +122,43 @@ class TestOpenCommand:
     def test_open_with_name(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = SuccessResponse(message="Session created")
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = SuccessResponse(message="Session created")
 
-            result = runner.invoke(main, ["open", "--name", "my-session"])
+                result = runner.invoke(main, ["open", "--name", "my-session"])
 
-            assert result.exit_code == 0
-            assert "my-session" in result.output
-            assert "created" in result.output
+                assert result.exit_code == 0
+                assert "my-session" in result.output
+                assert "created" in result.output
 
     def test_open_generates_name(self, tmp_path: Path) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = SuccessResponse(message="Session created")
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = SuccessResponse(message="Session created")
 
-            with runner.isolated_filesystem(temp_dir=tmp_path):
-                result = runner.invoke(main, ["open"])
+                with runner.isolated_filesystem(temp_dir=tmp_path):
+                    result = runner.invoke(main, ["open"])
 
-                assert result.exit_code == 0
-                assert "created" in result.output
+                    assert result.exit_code == 0
+                    assert "created" in result.output
 
     def test_open_duplicate_directory_error(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = ErrorResponse(
-                code="SESSION_EXISTS",
-                message="A session already exists in this directory: test-session",
-            )
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = ErrorResponse(
+                    code="SESSION_EXISTS",
+                    message="A session already exists in this directory: test-session",
+                )
 
-            result = runner.invoke(main, ["open", "--name", "new-session"])
+                result = runner.invoke(main, ["open", "--name", "new-session"])
 
-            assert result.exit_code == 1
-            assert "already exists" in result.output
+                assert result.exit_code == 1
+                assert "already exists" in result.output
 
 
 class TestCloseCommand:
@@ -162,24 +167,26 @@ class TestCloseCommand:
     def test_close_session(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = SuccessResponse(message="Session closed")
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = SuccessResponse(message="Session closed")
 
-            result = runner.invoke(main, ["close", "test-session"])
+                result = runner.invoke(main, ["close", "test-session"])
 
-            assert result.exit_code == 0
-            assert "closed" in result.output
+                assert result.exit_code == 0
+                assert "closed" in result.output
 
     def test_close_nonexistent_session(self) -> None:
         runner = CliRunner()
 
-        with patch("wormhole.cli.send_control_request_sync") as mock:
-            mock.return_value = ErrorResponse(
-                code="SESSION_NOT_FOUND",
-                message="Session not found: nonexistent",
-            )
+        with patch("wormhole.cli.ensure_daemon_running", return_value=True):
+            with patch("wormhole.cli.send_control_request_sync") as mock:
+                mock.return_value = ErrorResponse(
+                    code="SESSION_NOT_FOUND",
+                    message="Session not found: nonexistent",
+                )
 
-            result = runner.invoke(main, ["close", "nonexistent"])
+                result = runner.invoke(main, ["close", "nonexistent"])
 
-            assert result.exit_code == 1
-            assert "not found" in result.output
+                assert result.exit_code == 1
+                assert "not found" in result.output

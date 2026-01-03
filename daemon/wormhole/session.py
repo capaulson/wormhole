@@ -15,6 +15,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient, ToolPermissionContext
 
+from wormhole.persistence import EventPersistence, PersistedEvent
 from wormhole.protocol import EventMessage, PermissionRequestMessage
 
 
@@ -57,6 +58,7 @@ class WormholeSession:
         name: str,
         directory: Path,
         buffer_size_bytes: int = DEFAULT_BUFFER_SIZE_BYTES,
+        event_persistence: EventPersistence | None = None,
     ) -> None:
         self.name = name
         self.directory = directory
@@ -74,12 +76,23 @@ class WormholeSession:
         self._pending_permissions: dict[str, asyncio.Future[str]] = {}
         self._pending_permission_details: dict[str, PendingPermission] = {}
 
+        # Event persistence for full history
+        self._event_persistence = event_persistence or EventPersistence()
+        # Restore sequence from persisted events
+        self._sequence = self._event_persistence.get_latest_sequence(name)
+
         # Callback to broadcast events to WebSocket clients
         self._broadcast_callback: Any = None
+        # Callback to persist session state changes
+        self._persistence_callback: Any = None
 
     def set_broadcast_callback(self, callback: Any) -> None:
         """Set callback for broadcasting events to connected clients."""
         self._broadcast_callback = callback
+
+    def set_persistence_callback(self, callback: Any) -> None:
+        """Set callback for persisting session state changes."""
+        self._persistence_callback = callback
 
     async def start(self, options: dict[str, Any] | None = None) -> None:
         """Start the Claude SDK client."""
@@ -89,24 +102,71 @@ class WormholeSession:
         from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
         logger = logging.getLogger(__name__)
+        options = dict(options) if options else {}  # Make a copy
 
         # Use system claude CLI if available (for Max plan support)
         cli_path = shutil.which("claude")
         logger.info(f"Using Claude CLI: {cli_path or 'bundled'}")
 
         # Override ANTHROPIC_API_KEY to empty string so Claude uses Max plan
-        # The env parameter adds to the existing environment, so we override with empty
         logger.info("Overriding ANTHROPIC_API_KEY to use Max plan with model=opus")
 
-        sdk_options = ClaudeAgentOptions(
-            cwd=str(self.directory),
-            can_use_tool=self._permission_handler,
-            permission_mode="default",
-            cli_path=cli_path,  # Use system claude instead of bundled
-            env={"ANTHROPIC_API_KEY": ""},  # Override API key to force Max plan
-            model="opus",  # Explicitly request Opus (Max plan default)
-            **(options or {}),
-        )
+        # Map CLI flags to SDK options
+        # SDK permission_mode: 'default', 'acceptEdits', 'plan', 'bypassPermissions'
+        permission_mode: str | None = None
+        if options.pop("dangerously_skip_permissions", None) is not None:
+            permission_mode = "bypassPermissions"
+            logger.warning("Running with bypassPermissions mode")
+        elif options.pop("accept_edits", None) is not None:
+            permission_mode = "acceptEdits"
+        elif options.pop("plan", None) is not None:
+            permission_mode = "plan"
+
+        # SDK boolean options - convert None to True
+        sdk_bool_options = [
+            "continue_conversation", "include_partial_messages",
+            "fork_session", "enable_file_checkpointing",
+        ]
+        for opt in sdk_bool_options:
+            if opt in options and options[opt] is None:
+                options[opt] = True
+
+        # Extract known SDK options
+        sdk_opts: dict[str, Any] = {
+            "cwd": str(self.directory),
+            "cli_path": cli_path,
+            "env": {"ANTHROPIC_API_KEY": ""},  # Override API key to force Max plan
+            "model": options.pop("model", "opus"),
+        }
+
+        # Add permission handling
+        if permission_mode:
+            sdk_opts["permission_mode"] = permission_mode
+        else:
+            sdk_opts["can_use_tool"] = self._permission_handler
+
+        # Map known options to SDK parameters
+        known_sdk_opts = [
+            "system_prompt", "max_turns", "max_budget_usd", "resume",
+            "continue_conversation", "include_partial_messages",
+            "fork_session", "enable_file_checkpointing", "max_thinking_tokens",
+            "tools", "allowed_tools", "disallowed_tools", "fallback_model",
+        ]
+        for opt in known_sdk_opts:
+            if opt in options:
+                sdk_opts[opt] = options.pop(opt)
+
+        # Any remaining options go to extra_args (passed to CLI)
+        if options:
+            # Convert back to CLI format (underscores to dashes)
+            extra_args = {}
+            for key, value in options.items():
+                cli_key = key.replace("_", "-")
+                extra_args[cli_key] = value if value is not None else ""
+            sdk_opts["extra_args"] = extra_args
+            logger.debug(f"Passing extra_args to CLI: {extra_args}")
+
+        sdk_options = ClaudeAgentOptions(**sdk_opts)
 
         self._client = ClaudeSDKClient(sdk_options)
         await self._client.connect()
@@ -114,7 +174,15 @@ class WormholeSession:
     async def stop(self) -> None:
         """Stop the Claude SDK client."""
         if self._client:
-            await self._client.disconnect()
+            try:
+                await self._client.disconnect()
+            except AttributeError as e:
+                # Handle SDK internal errors (e.g., TaskGroup._exceptions missing)
+                import logging
+                logging.getLogger(__name__).debug(f"SDK disconnect error (ignored): {e}")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error disconnecting SDK client: {e}")
             self._client = None
         self.state = SessionState.IDLE
 
@@ -172,8 +240,31 @@ class WormholeSession:
         return False
 
     def get_events_since(self, sequence: int) -> list[BufferedEvent]:
-        """Get buffered events since given sequence number."""
-        return [e for e in self._event_buffer if e.sequence > sequence]
+        """Get events since given sequence number.
+
+        First checks in-memory buffer, then falls back to persisted events.
+        """
+        # Check in-memory buffer first
+        buffered = [e for e in self._event_buffer if e.sequence > sequence]
+        if buffered:
+            # If we have buffered events and the first one is what they need, use buffer
+            if buffered[0].sequence == sequence + 1:
+                return buffered
+
+        # Fall back to persisted events
+        persisted = self._event_persistence.load_events(self.name, since_sequence=sequence)
+        return [
+            BufferedEvent(
+                sequence=e.sequence,
+                timestamp=e.timestamp,
+                message=e.message,
+            )
+            for e in persisted
+        ]
+
+    def get_oldest_sequence(self) -> int:
+        """Get the oldest sequence number available (from persistence)."""
+        return self._event_persistence.get_oldest_sequence(self.name)
 
     def get_pending_permissions(self) -> list[PendingPermission]:
         """Get all pending permission requests (for reconnection recovery)."""
@@ -291,7 +382,18 @@ class WormholeSession:
         self._event_buffer.append(event)
         self._event_buffer_size += event_size
 
-        # Evict old events if buffer exceeds size limit
+        # Persist event to disk for full history
+        self._event_persistence.append_event(
+            self.name,
+            PersistedEvent(
+                sequence=self._sequence,
+                timestamp=now,
+                message=msg_dict,
+            ),
+        )
+
+        # Evict old events from memory buffer if exceeds size limit
+        # (persisted events are kept on disk)
         while self._event_buffer_size > self.buffer_size_bytes and self._event_buffer:
             old_event = self._event_buffer.popleft()
             self._event_buffer_size -= old_event.estimated_size()
@@ -302,11 +404,17 @@ class WormholeSession:
             data = msg_dict.get("data", {})
             if isinstance(data, dict) and "session_id" in data:
                 self.claude_session_id = str(data["session_id"])
+                # Persist session ID capture
+                if self._persistence_callback:
+                    self._persistence_callback(self)
 
         # Update cost from result message (ResultMessage has total_cost_usd directly)
         cost = msg_dict.get("total_cost_usd")
         if cost is not None and isinstance(cost, (int, float)):
             self.cost_usd = float(cost)
+            # Persist cost update
+            if self._persistence_callback:
+                self._persistence_callback(self)
 
         # Broadcast to connected clients
         if self._broadcast_callback:
