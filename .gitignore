@@ -109,3 +109,8 @@ ExportOptions.plist
 *.sock
 *.pid
 *.log
+*.output
+
+# Test results (may contain PII)
+*.xcresult
+TestResults/
